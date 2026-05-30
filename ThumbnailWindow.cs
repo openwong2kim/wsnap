@@ -190,8 +190,10 @@ public sealed class ThumbnailWindow : Window
         var ed = new EditorWindow(_filePath);
         ed.Closed += (_, _) =>
         {
+            // Edited result pops as its own fresh thumbnail bottom-right (draggable),
+            // leaving the original in place — same flow as a new capture.
             if (!string.IsNullOrEmpty(ed.ResultPath))
-                ReplaceImage(ed.ResultPath!);
+                new ThumbnailWindow(ed.ResultPath!).Show();
             if (!_closing && !IsMouseOver) _dismiss.Start();
         };
         ed.Show();
@@ -220,11 +222,6 @@ public sealed class ThumbnailWindow : Window
         finally { if (!_closing && !IsMouseOver) _dismiss.Start(); }
     }
 
-    private void ReplaceImage(string newPath)
-    {
-        _filePath = newPath;
-        _img.Source = LoadFrozen(newPath);
-    }
 
     // ---- dismissal ----
 
