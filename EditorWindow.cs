@@ -13,7 +13,7 @@ namespace Wsnap;
 
 /// <summary>
 /// Minimal-but-real annotation editor: crop, arrow, rectangle, pen, text, mosaic.
-/// Deliberately NOT a ShareX-sized editor — just the few tools people actually use,
+/// Deliberately minimal — just the few tools people actually use,
 /// keyboard-first, then straight back into the drag-and-drop flow.
 /// Coordinates are image pixels throughout (a Viewbox scales the canvas to the window),
 /// so the rendered PNG is pixel-exact.

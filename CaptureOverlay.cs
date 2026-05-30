@@ -20,7 +20,7 @@ public enum CaptureMode
 /// A borderless, topmost, transparent window covering the entire virtual desktop.
 /// User drags a rectangle; on release we grab those pixels.
 /// PerMonitorV2 DPI awareness (app.manifest) keeps coordinates correct across
-/// mixed-DPI / fractional-scaling monitors — the exact case Flameshot mishandles.
+/// mixed-DPI / fractional-scaling monitors.
 /// </summary>
 public sealed class CaptureOverlay : Window
 {

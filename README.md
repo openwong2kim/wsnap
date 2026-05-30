@@ -4,15 +4,8 @@ macOS-style screen capture for Windows: **Shift+F1** → drag a region → a flo
 thumbnail stacks bottom-right → **drag it out as a real file** (terminal, Explorer,
 chat, upload field), click to copy the path, or edit / OCR it on the spot.
 
-심플함과 드래그앤드롭을 1급 기능으로 둔 네이티브 Windows 캡처 도구. ShareX·Flameshot의
-핵심 불만을 그대로 차별점으로 뒤집는다.
-
-| 경쟁자 불만 | wsnap |
-|---|---|
-| ShareX: UI가 압도적으로 복잡, DnD는 부가 | 제로 설정, DnD가 핵심 |
-| Flameshot: 단축키 하드코딩, Win+Shift+S 바인딩 실패 | 저수준 훅으로 임의 단축키 + 선택적 Win+Shift+S 대체 |
-| Flameshot: 멀티모니터·분수배율 깨짐 | PerMonitorV2 + 정확 픽셀 변환 |
-| 둘 다: OCR 부재/부가 | 썸네일에서 바로 한·영 텍스트 추출 |
+심플함과 드래그앤드롭을 1급 기능으로 둔 네이티브 Windows 캡처 도구. 제로 설정,
+임의 단축키, PerMonitorV2 정확 캡처, 썸네일에서 바로 OCR까지.
 
 ## 기능
 - **캡처 → 썸네일 → 드래그앤드롭** (핵심). 우하단에 최대 N개 세로 스택.
