@@ -3,6 +3,21 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.0.2] - 2026-05-30
+
+### Fixed
+- Editor drawing tools did nothing — the drawing canvas had no background so it never
+  received mouse input. Now hit-testable; all tools (arrow/rect/pen/text/mosaic/crop) work.
+- Text annotation: typing no longer leaks into tool shortcuts and Enter no longer saves
+  mid-typing (keys are owned by the focused text box).
+
+### Changed
+- Saving an edit now pops the edited result as its own fresh bottom-right thumbnail
+  (drag-and-droppable), leaving the original in place.
+- Edited thumbnails show a "수정됨" (edited) badge in the top-right corner.
+
+[1.0.2]: https://github.com/openwong2kim/wsnap/releases/tag/v1.0.2
+
 ## [1.0.1] - 2026-05-30
 
 ### Added
