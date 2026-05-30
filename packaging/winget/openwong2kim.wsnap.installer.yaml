@@ -7,6 +7,6 @@ ReleaseDate: 2026-05-30
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/openwong2kim/wsnap/releases/download/v1.0.0/wsnap.exe
-    InstallerSha256: 52551452947F68539A0B59BCE2D468547588DBCCACF467D1BFA2BC4E48C422C2
+    InstallerSha256: 86B6D2FBB2BFEC0825149CA99C47E55964E85016BB4A18D83DE861830375A50F
 ManifestType: installer
 ManifestVersion: 1.6.0

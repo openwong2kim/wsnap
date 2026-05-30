@@ -6,7 +6,7 @@
     "architecture": {
         "64bit": {
             "url": "https://github.com/openwong2kim/wsnap/releases/download/v1.0.0/wsnap.exe",
-            "hash": "52551452947f68539a0b59bce2d468547588dbccacf467d1bfa2bc4e48c422c2"
+            "hash": "86b6d2fbb2bfec0825149ca99c47e55964e85016bb4a18d83de861830375a50f"
         }
     },
     "bin": "wsnap.exe",
