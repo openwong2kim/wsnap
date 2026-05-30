@@ -30,7 +30,9 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          $ver = "${{ github.ref_name }}" -replace '^v', ''
+          if (-not $ver) { $ver = '1.0.1' }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$ver" installer.iss
 
       - name: Package portable zip + checksums
         shell: pwsh

@@ -9,11 +9,17 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms> <!-- Screen/pixel capture + NotifyIcon tray -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>wsnap.ico</ApplicationIcon>
     <AssemblyName>wsnap</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <RootNamespace>Wsnap</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks> <!-- scroll-capture row matching uses pointers -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn> <!-- DPI is set via WPF manifest; WinForms hint is moot. -->
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embedded so the tray icon resolves inside the single-file exe. -->
+    <EmbeddedResource Include="wsnap.ico" />
+  </ItemGroup>
 
 </Project>

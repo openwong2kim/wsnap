@@ -3,6 +3,19 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.0.1] - 2026-05-30
+
+### Added
+- Real application icon (blue rounded tile + white viewfinder corner-marks), embedded so
+  the tray icon and exe/window icons use it instead of the stock system icon.
+
+### Changed
+- Installer is now version-parameterized (`ISCC /DAppVersion=…`), sets its own icon, and
+  installs a per-user startup registry entry when the "start with Windows" task is chosen.
+- Production landing page redesign (served via GitHub Pages).
+
+[1.0.1]: https://github.com/openwong2kim/wsnap/releases/tag/v1.0.1
+
 ## [1.0.0] - 2026-05-30
 
 First public release. macOS-style capture for Windows with drag-and-drop as the primary action.

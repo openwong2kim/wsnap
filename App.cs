@@ -73,12 +73,30 @@ public partial class App : System.Windows.Application
 
         _tray = new WinForms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = LoadTrayIcon(),
             Visible = true,
             Text = $"wsnap — {Settings.Current.HotkeyText}로 캡처",
             ContextMenuStrip = menu
         };
         _tray.DoubleClick += (_, _) => StartCapture();
+    }
+
+    /// <summary>Load the bundled app icon (embedded so it works inside the single-file exe).</summary>
+    private static System.Drawing.Icon LoadTrayIcon()
+    {
+        try
+        {
+            var asm = System.Reflection.Assembly.GetExecutingAssembly();
+            var name = Array.Find(asm.GetManifestResourceNames(),
+                n => n.EndsWith("wsnap.ico", StringComparison.OrdinalIgnoreCase));
+            if (name != null)
+            {
+                using var s = asm.GetManifestResourceStream(name);
+                if (s != null) return new System.Drawing.Icon(s, System.Windows.Forms.SystemInformation.SmallIconSize);
+            }
+        }
+        catch (Exception ex) { CrashLog.Write("tray-icon", ex); }
+        return System.Drawing.SystemIcons.Application;
     }
 
     /// <summary>Re-apply runtime toggles after the settings window saves.</summary>
