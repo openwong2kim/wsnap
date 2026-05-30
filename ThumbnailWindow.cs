@@ -31,11 +31,12 @@ public sealed class ThumbnailWindow : Window
     private string _filePath;
     private readonly Image _img;
     private readonly StackPanel _buttons;
+    private readonly Border? _badge;
     private readonly DispatcherTimer _dismiss;
     private System.Windows.Point _dragStart, _flingStart;
     private bool _maybeDrag, _maybeFling, _closing;
 
-    public ThumbnailWindow(string filePath)
+    public ThumbnailWindow(string filePath, bool edited = false)
     {
         _filePath = filePath;
 
@@ -62,8 +63,28 @@ public sealed class ThumbnailWindow : Window
         _buttons.Children.Add(MiniButton("텍스트", OcrCurrent));
         _buttons.Children.Add(MiniButton("✕", () => DismissSlide()));
 
+        if (edited)
+        {
+            _badge = new Border
+            {
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 6, 8, 0),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(7, 2, 7, 2),
+                Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xF0, 0x3B, 0x82, 0xF6)),
+                Child = new TextBlock
+                {
+                    Text = "수정됨",
+                    Foreground = System.Windows.Media.Brushes.White,
+                    FontSize = 10.5, FontWeight = FontWeights.SemiBold
+                }
+            };
+        }
+
         var grid = new Grid();
         grid.Children.Add(_img);
+        if (_badge != null) grid.Children.Add(_badge);
         grid.Children.Add(_buttons);
 
         var border = new Border
@@ -82,8 +103,18 @@ public sealed class ThumbnailWindow : Window
         MouseRightButtonDown += OnRightDown;
         MouseMove += OnMove;
         MouseLeftButtonUp += OnUp;
-        MouseEnter += (_, _) => { _dismiss?.Stop(); _buttons.Visibility = Visibility.Visible; };
-        MouseLeave += (_, _) => { _buttons.Visibility = Visibility.Hidden; if (!_closing) _dismiss?.Start(); };
+        MouseEnter += (_, _) =>
+        {
+            _dismiss?.Stop();
+            _buttons.Visibility = Visibility.Visible;
+            if (_badge != null) _badge.Visibility = Visibility.Hidden;   // buttons take the corner
+        };
+        MouseLeave += (_, _) =>
+        {
+            _buttons.Visibility = Visibility.Hidden;
+            if (_badge != null) _badge.Visibility = Visibility.Visible;
+            if (!_closing) _dismiss?.Start();
+        };
 
         _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Math.Max(1, Settings.Current.AutoDismissSeconds)) };
         _dismiss.Tick += (_, _) => { _dismiss.Stop(); DismissSlide(); };
@@ -193,7 +224,7 @@ public sealed class ThumbnailWindow : Window
             // Edited result pops as its own fresh thumbnail bottom-right (draggable),
             // leaving the original in place — same flow as a new capture.
             if (!string.IsNullOrEmpty(ed.ResultPath))
-                new ThumbnailWindow(ed.ResultPath!).Show();
+                new ThumbnailWindow(ed.ResultPath!, edited: true).Show();
             if (!_closing && !IsMouseOver) _dismiss.Start();
         };
         ed.Show();
