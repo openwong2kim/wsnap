@@ -61,7 +61,13 @@ public sealed class EditorWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x25, 0x25, 0x25));
 
-        _canvas = new Canvas { Width = _pw, Height = _ph, ClipToBounds = true };
+        // Transparent (not null) background so the Canvas is hit-testable across its
+        // whole area — without this, clicks fall through to nothing and no tool draws.
+        _canvas = new Canvas
+        {
+            Width = _pw, Height = _ph, ClipToBounds = true,
+            Background = System.Windows.Media.Brushes.Transparent
+        };
         _canvas.Children.Add(new Image
         {
             Source = bi, Width = _pw, Height = _ph,
@@ -144,6 +150,14 @@ public sealed class EditorWindow : Window
 
     private void OnKey(object sender, KeyEventArgs e)
     {
+        // While typing in a text annotation, let the TextBox own the keys
+        // (otherwise letters switch tools and Enter would save mid-typing).
+        if (Keyboard.FocusedElement is System.Windows.Controls.TextBox)
+        {
+            if (e.Key == Key.Escape) Keyboard.ClearFocus();
+            return;
+        }
+
         if (e.Key == Key.Escape) { ResultPath = null; Close(); return; }
         if (e.Key == Key.Enter) { Save(); return; }
         if (e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Control) != 0) { Undo(); return; }
