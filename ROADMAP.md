@@ -1,0 +1,60 @@
+# wsnap 로드맵 (구현 현황)
+
+> Windows용 맥 스타일 캡처 도구. "찍기 → 우하단 썸네일 → 드래그앤드롭 파일".
+> 시장 1·2위(ShareX, Flameshot)의 핵심 불만을 차별점으로 뒤집는다.
+> 원본 기획: `SnapDrop_Roadmap.md`. 제품명은 **wsnap**으로 확정.
+
+상태 범례: ✅ 구현 완료 · 🟡 best-effort/제약 있음 · ⚙️ 코드 외 인프라(사람이 수행)
+
+---
+
+## v0.1 — MVP ✅
+- ✅ 저수준 키보드 훅, 영역 선택 오버레이(PerMonitorV2), 임시 PNG 저장
+- ✅ 플로팅 썸네일: 드래그아웃=실제 파일, 클릭=경로 복사
+
+## v0.2 — 상주 앱 기본기 ✅
+- ✅ 트레이 아이콘 + 우클릭 메뉴 (캡처 / OCR / GIF / 스크롤 / 전체 지우기 / 설정 / 종료) — `App.cs`
+- ✅ Windows 시작 시 자동 실행 (HKCU Run 키) — `AutoStart.cs`
+- ✅ 단일 인스턴스 보장 (Mutex) + 재실행 시 캡처 트리거 — `SingleInstance.cs`
+- ✅ 단축키 커스터마이즈 + Win+Shift+S 가로채기 토글(기본 off) — `HotkeyHook.cs`, `SettingsWindow.cs`
+- ✅ 설정 저장 (저장 폴더 / 단축키 / 페이드 시간 / 최대 개수 등) — `Settings.cs`
+
+## v0.3 — 캡처 히스토리 스택 ✅
+- ✅ 여러 장이 우하단에 세로 누적 (newest 아래), 최대 개수 설정
+- ✅ 각 썸네일 개별 드래그 / 클릭 / 삭제(✕) / 편집 / OCR 버튼
+- ✅ 전체 지우기 (트레이 메뉴)
+- ✅ 히스토리 영구 보관 옵션 (날짜별 폴더) — `CaptureStore.cs`
+
+## v0.4 — 최소 편집 ✅
+- ✅ 크롭, 화살표, 사각형, 펜, 텍스트, 모자이크 — `EditorWindow.cs`
+- ✅ 편집 후 다시 썸네일로 (DnD 흐름 유지)
+- ✅ 키보드 중심 (A/R/P/T/M/C, Ctrl+Z 실행취소, Enter 저장, Esc 취소)
+
+## v0.5 — OCR & 텍스트 ✅
+- ✅ 썸네일 "텍스트" 버튼 + 트레이 "텍스트 추출" (Windows.Media.Ocr, 온디바이스·무료) — `Ocr.cs`
+- ✅ 한국어/영어 인식 (설치된 언어팩 기반)
+- ✅ 영역 선택 직후 텍스트만 추출 모드 (CaptureMode.OcrText)
+
+## v1.0 — 공개 릴리스
+- ✅ 자체 포함 단일 .exe (`publish.ps1`) + 인스톨러 스크립트(`installer.iss`, Inno Setup)
+- ✅ 충돌/예외 처리 (전역 핸들러 + 로컬 로그) — `CrashLog.cs`
+- ✅ 텔레메트리(옵트인, 로컬 전용) — `CrashLog.Telemetry`
+- ✅ 문서(README), 랜딩 페이지(`site/index.html`), Apache-2.0 라이선스(`LICENSE` + `NOTICE`)
+- 🟡 다중 모니터·고DPI: 코드 대응 완료(PerMonitorV2), 실제 회귀 테스트는 기기 필요
+- ⚙️ 코드 서명 인증서 (SmartScreen 회피) — 인증서 구매·서명 필요
+- ⚙️ GitHub 공개 / winget 등록 — 저장소 생성·게시 필요
+
+## v1.1+ — 확장
+- ✅ GIF 녹화 (영역, 즉시 인코딩·무한루프) — `GifRecorder.cs`, `GifWriter.cs`
+- 🟡 스크롤 캡처 (자동 휠 + 겹침 검출 스티칭, 텍스트/웹에 적합·매끄러운 스크롤엔 취약) — `ScrollCapture.cs`
+- ✅ 업로드 목적지 코드 경로 (Imgur, 옵트인) — `Uploader.cs` (⚙️ 사용자가 Client-ID 입력)
+- ✅ 클립보드 감지 모드 (다른 도구 캡처도 썸네일화) — `ClipboardWatcher.cs`
+
+---
+
+## 남은 사람 몫 (코드 외)
+1. **코드 서명**: Authenticode 인증서로 `wsnap.exe`/`setup.exe` 서명 → SmartScreen 경고 제거.
+2. **GitHub 공개**: `git init` 후 원격 생성·푸시 (현재 git 저장소 아님), 릴리스에 exe 첨부.
+3. **winget**: 매니페스트 작성 후 microsoft/winget-pkgs PR.
+4. **Imgur 키**: 본인 Client-ID를 설정 창에 입력해야 업로드 활성화.
+5. **OCR 언어팩**: 설정 > 시간 및 언어 > 언어에서 한국어 OCR 기능 설치돼 있어야 한/영 인식.

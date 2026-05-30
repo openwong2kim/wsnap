@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wsnap — Windows용 맥 스타일 캡처</title>
+<style>
+  :root { --bg:#0f1115; --fg:#e8ecf1; --muted:#9aa4b2; --accent:#3b82f6; --card:#171a21; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--fg); line-height:1.6; }
+  .wrap { max-width:920px; margin:0 auto; padding:0 24px; }
+  header { padding:96px 0 56px; text-align:center; }
+  h1 { font-size:64px; margin:0; letter-spacing:-2px; }
+  .tag { font-size:22px; color:var(--muted); margin-top:12px; }
+  .cta { display:inline-block; margin-top:32px; background:var(--accent); color:#fff; text-decoration:none;
+         padding:14px 28px; border-radius:12px; font-weight:600; }
+  .cta.ghost { background:transparent; border:1px solid #2b3340; color:var(--fg); margin-left:10px; }
+  section { padding:40px 0; }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:2px; color:var(--accent); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:18px; margin-top:16px; }
+  .card { background:var(--card); border:1px solid #222833; border-radius:14px; padding:20px; }
+  .card h3 { margin:0 0 6px; font-size:18px; }
+  .card p { margin:0; color:var(--muted); font-size:15px; }
+  table { width:100%; border-collapse:collapse; margin-top:16px; font-size:15px; }
+  td,th { text-align:left; padding:10px 12px; border-bottom:1px solid #222833; vertical-align:top; }
+  th { color:var(--muted); font-weight:600; }
+  code { background:#0b0d11; padding:2px 6px; border-radius:6px; color:#cbd5e1; }
+  footer { padding:48px 0; color:var(--muted); text-align:center; font-size:14px; }
+  kbd { background:#0b0d11; border:1px solid #2b3340; border-bottom-width:2px; border-radius:6px; padding:1px 7px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>wsnap</h1>
+    <div class="tag">찍고 → 드래그하면 그대로 파일.<br>심플함과 드래그앤드롭이 1급인 Windows 캡처 도구.</div>
+    <a class="cta" href="#download">다운로드</a>
+    <a class="cta ghost" href="https://github.com/openwong2kim/wsnap">GitHub</a>
+  </header>
+
+  <section>
+    <h2>왜 wsnap인가</h2>
+    <div class="grid">
+      <div class="card"><h3>드래그앤드롭이 본체</h3><p>썸네일을 끌면 터미널엔 경로가, 탐색기·채팅·업로드창엔 실제 파일이 떨어진다. 부가기능이 아니라 1급 기능.</p></div>
+      <div class="card"><h3>제로 설정</h3><p><kbd>Shift</kbd>+<kbd>F1</kbd> 누르고 영역만 끌면 끝. ShareX의 압도적 UI 없음.</p></div>
+      <div class="card"><h3>고DPI·멀티모니터 정확</h3><p>PerMonitorV2 + 픽셀 변환으로 분수배율에서도 안 깨진다. Flameshot이 틀리는 바로 그 지점.</p></div>
+      <div class="card"><h3>OCR 내장</h3><p>썸네일에서 “텍스트” 버튼 → 한/영 텍스트 복사. 온디바이스·무료.</p></div>
+      <div class="card"><h3>최소 편집</h3><p>화살표·사각형·펜·텍스트·모자이크·크롭. 키보드 우선, 딱 필요한 만큼만.</p></div>
+      <div class="card"><h3>히스토리 스택</h3><p>여러 장이 우하단에 세로로 쌓인다. 맥처럼.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>경쟁자 불만, 그대로 차별점</h2>
+    <table>
+      <tr><th>경쟁자 불만</th><th>wsnap</th></tr>
+      <tr><td>ShareX — UI가 압도적으로 복잡, DnD는 부가</td><td>제로 설정, DnD가 핵심</td></tr>
+      <tr><td>Flameshot — 단축키 하드코딩, Win+Shift+S 바인딩 실패</td><td>저수준 훅으로 임의 단축키 + 선택적 Win+Shift+S 대체</td></tr>
+      <tr><td>Flameshot — 멀티모니터·분수배율 깨짐</td><td>PerMonitorV2 정확 캡처</td></tr>
+      <tr><td>둘 다 — OCR 부재 또는 부가</td><td>썸네일에서 바로 텍스트 추출</td></tr>
+    </table>
+  </section>
+
+  <section id="download">
+    <h2>다운로드</h2>
+    <div class="card">
+      <p>Windows 10/11 (x64). 단일 실행 파일.</p>
+      <p style="margin-top:10px"><code>wsnap-setup-1.0.0.exe</code> 또는 포터블 <code>wsnap.exe</code></p>
+      <p style="margin-top:10px; font-size:13px">소스에서 직접 빌드: <code>pwsh -File publish.ps1</code></p>
+    </div>
+  </section>
+</div>
+<footer>Apache-2.0 라이선스 · 로컬·온디바이스 · 추적 없음(텔레메트리는 옵트인·로컬 전용)</footer>
+</body>
+</html>
