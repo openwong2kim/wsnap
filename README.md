@@ -7,6 +7,12 @@ chat, upload field), click to copy the path, or edit / OCR it on the spot.
 심플함과 드래그앤드롭을 1급 기능으로 둔 네이티브 Windows 캡처 도구. 제로 설정,
 임의 단축키, PerMonitorV2 정확 캡처, 썸네일에서 바로 OCR까지.
 
+## 데모
+
+<video src="https://github.com/openwong2kim/wsnap/raw/main/site/demo.mp4" controls muted playsinline width="720"></video>
+
+재생이 안 보이면 ▶ [데모 영상 열기](https://github.com/openwong2kim/wsnap/raw/main/site/demo.mp4)
+
 ## 기능
 - **캡처 → 썸네일 → 드래그앤드롭** (핵심). 우하단에 최대 N개 세로 스택.
 - **최소 편집기**: 화살표·사각형·펜·텍스트·모자이크·크롭 (키보드 우선, Undo).
