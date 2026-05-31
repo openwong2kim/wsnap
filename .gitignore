@@ -2,6 +2,9 @@
 bin/
 obj/
 publish/
+.buildcheck/
+.themecheck/
+.smoke/
 *.user
 
 # Rider / VS
@@ -10,3 +13,4 @@ publish/
 
 # Logs / local
 *.log
+.mp4check/

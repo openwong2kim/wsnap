@@ -8,10 +8,11 @@ using WinForms = System.Windows.Forms;
 namespace Wsnap;
 
 /// <summary>
-/// v0.2 settings form: storage folder, hotkey rebinding, fade time, stack size,
+/// Settings: storage folder, hotkey rebinding, fade time, stack size, auto-copy,
 /// start-with-Windows, Win+Shift+S toggle, history, clipboard watch, upload, telemetry.
-/// Edits are applied to <see cref="Settings.Current"/> and persisted on save; the
-/// supplied callback lets the app re-apply runtime toggles (autostart, clipboard hook).
+/// Themed to match the rest of wsnap (dark cards, styled inputs); edits apply to
+/// <see cref="Settings.Current"/> and persist on save, then the callback re-applies
+/// runtime toggles (autostart, clipboard hook).
 /// </summary>
 public sealed class SettingsWindow : Window
 {
@@ -24,9 +25,11 @@ public sealed class SettingsWindow : Window
     private bool _capturing;
 
     private readonly TextBox _folderBox;
+    private readonly TextBox _template;
     private readonly TextBlock _hotkeyLabel;
     private readonly Slider _fade, _max;
-    private readonly CheckBox _autostart, _swallow, _history, _clipboard, _telemetry, _upload;
+    private readonly TextBlock _fadeVal;
+    private readonly CheckBox _autostart, _swallow, _history, _clipboard, _telemetry, _upload, _autocopy, _toolbar;
     private readonly TextBox _imgur;
 
     public static void ShowSingleton(Action onApplied)
@@ -45,54 +48,67 @@ public sealed class SettingsWindow : Window
         _vk = s.HotkeyVk; _shift = s.HotkeyShift; _ctrl = s.HotkeyCtrl; _alt = s.HotkeyAlt; _win = s.HotkeyWin;
 
         Title = "wsnap 설정";
-        Width = 460; SizeToContent = SizeToContent.Height;
+        Width = 500; SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
+        Theme.Apply(this);
 
-        var root = new StackPanel { Margin = new Thickness(16) };
+        var root = new StackPanel { Margin = new Thickness(18) };
+
+        // header
+        root.Children.Add(new TextBlock
+        {
+            Text = "설정", FontSize = 20, FontWeight = FontWeights.Bold,
+            Foreground = Theme.Brush("Text"), Margin = new Thickness(2, 0, 0, 14)
+        });
 
         // --- storage ---
-        root.Children.Add(Header("저장"));
-        _folderBox = new TextBox { Text = s.SaveFolder, IsReadOnly = true, VerticalContentAlignment = VerticalAlignment.Center };
-        var browse = Btn("찾아보기", PickFolder);
-        root.Children.Add(Row("저장 폴더", _folderBox, browse));
+        _folderBox = Field(s.SaveFolder, readOnly: true);
+        _template = Field(s.FilenameTemplate, readOnly: false);
         _history = Check("캡처를 날짜별 폴더에 영구 보관 (히스토리)", s.KeepHistory);
-        root.Children.Add(_history);
+        root.Children.Add(Card("저장",
+            Row("저장 폴더", _folderBox, Btn("찾아보기", PickFolder, primary: false)),
+            Row("파일 이름 형식", _template, null),
+            Hint("토큰: {app} {title} {date} {time} {seq} {w} {h} · 또는 {yyyy-MM-dd_HHmmss} 같은 날짜 형식"),
+            _history));
+
+        // --- capture ---
+        _autocopy = Check("캡처하면 자동으로 클립보드에 복사 (Ctrl+V 바로 붙여넣기)", s.AutoCopyOnCapture);
+        _toolbar = Check("영역 선택 후 액션 툴바 표시 (복사·저장·편집·OCR·GIF·고정)", s.PostCaptureToolbar);
+        root.Children.Add(Card("캡처", _autocopy, _toolbar));
 
         // --- thumbnails ---
-        root.Children.Add(Header("썸네일"));
-        _fade = MakeSlider(1, 30, s.AutoDismissSeconds);
-        root.Children.Add(SliderRow("자동 사라짐(초)", _fade));
+        _fade = MakeSlider(0, 30, s.AutoDismissSeconds);
+        _fadeVal = new TextBlock { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Foreground = Theme.Brush("Muted"), MinWidth = 36 };
+        _fade.ValueChanged += (_, _) => _fadeVal.Text = (int)_fade.Value == 0 ? "끄기" : ((int)_fade.Value).ToString();
+        _fadeVal.Text = (int)_fade.Value == 0 ? "끄기" : ((int)_fade.Value).ToString();
         _max = MakeSlider(1, 10, s.MaxVisible);
-        root.Children.Add(SliderRow("최대 동시 표시 개수", _max));
+        root.Children.Add(Card("썸네일",
+            SliderRow("자동 사라짐(초) · 0=끄기", _fade, _fadeVal),
+            SliderRow("최대 동시 표시 개수", _max, null)));
 
         // --- hotkey ---
-        root.Children.Add(Header("단축키"));
-        _hotkeyLabel = new TextBlock { Text = s.HotkeyText, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
-        root.Children.Add(Row("캡처 단축키", _hotkeyLabel, Btn("변경", BeginCapture)));
+        _hotkeyLabel = new TextBlock { Text = s.HotkeyText, FontWeight = FontWeights.Bold, Foreground = Theme.Brush("Text"), VerticalAlignment = VerticalAlignment.Center };
         _swallow = Check("Win+Shift+S도 가로채기 (OS 스니핑툴 대체)", s.SwallowWinShiftS);
-        root.Children.Add(_swallow);
+        root.Children.Add(Card("단축키",
+            Row("캡처 단축키", _hotkeyLabel, Btn("변경", BeginCapture, primary: false)),
+            _swallow));
 
         // --- resident ---
-        root.Children.Add(Header("상주 동작"));
         _autostart = Check("Windows 시작 시 자동 실행", AutoStart.IsEnabled());
-        root.Children.Add(_autostart);
         _clipboard = Check("클립보드 이미지 자동 썸네일화", s.ClipboardWatch);
-        root.Children.Add(_clipboard);
         _telemetry = Check("익명 사용 로그 남기기(로컬 전용, 옵트인)", s.TelemetryOptIn);
-        root.Children.Add(_telemetry);
+        root.Children.Add(Card("상주 동작", _autostart, _clipboard, _telemetry));
 
         // --- upload ---
-        root.Children.Add(Header("업로드 (선택)"));
         _upload = Check("Imgur 업로드 활성화", s.UploadEnabled);
-        root.Children.Add(_upload);
-        _imgur = new TextBox { Text = s.ImgurClientId, VerticalContentAlignment = VerticalAlignment.Center };
-        root.Children.Add(Row("Imgur Client-ID", _imgur, null));
+        _imgur = Field(s.ImgurClientId, readOnly: false);
+        root.Children.Add(Card("업로드 (선택)", _upload, Row("Imgur Client-ID", _imgur, null)));
 
         // --- actions ---
         var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-        actions.Children.Add(Btn("저장", ApplyAndClose));
-        actions.Children.Add(Btn("취소", Close));
+        actions.Children.Add(Btn("취소", Close, primary: false));
+        actions.Children.Add(Btn("저장", ApplyAndClose, primary: true));
         root.Children.Add(actions);
 
         Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height * 0.92 };
@@ -106,7 +122,7 @@ public sealed class SettingsWindow : Window
     {
         _capturing = true;
         _hotkeyLabel.Text = "키 조합을 누르세요…";
-        _hotkeyLabel.Foreground = System.Windows.Media.Brushes.OrangeRed;
+        _hotkeyLabel.Foreground = Theme.Brush("Warn");
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -114,7 +130,6 @@ public sealed class SettingsWindow : Window
         if (!_capturing) return;
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
-        // ignore lone modifier presses; wait for a real key
         if (key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl
             or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin) { e.Handled = true; return; }
 
@@ -134,10 +149,9 @@ public sealed class SettingsWindow : Window
 
     private void RefreshHotkeyLabel()
     {
-        // build a preview using the same formatting as Settings.HotkeyText
         var tmp = new Settings { HotkeyVk = _vk, HotkeyShift = _shift, HotkeyCtrl = _ctrl, HotkeyAlt = _alt, HotkeyWin = _win };
         _hotkeyLabel.Text = tmp.HotkeyText;
-        _hotkeyLabel.Foreground = System.Windows.Media.Brushes.Black;
+        _hotkeyLabel.Foreground = Theme.Brush("Text");
     }
 
     private void PickFolder()
@@ -153,9 +167,12 @@ public sealed class SettingsWindow : Window
     {
         var s = Settings.Current;
         s.SaveFolder = _folderBox.Text;
+        s.FilenameTemplate = string.IsNullOrWhiteSpace(_template.Text) ? Settings.DefaultFilenameTemplate : _template.Text.Trim();
         s.KeepHistory = _history.IsChecked == true;
         s.AutoDismissSeconds = (int)_fade.Value;
         s.MaxVisible = (int)_max.Value;
+        s.AutoCopyOnCapture = _autocopy.IsChecked == true;
+        s.PostCaptureToolbar = _toolbar.IsChecked == true;
         s.HotkeyVk = _vk; s.HotkeyShift = _shift; s.HotkeyCtrl = _ctrl; s.HotkeyAlt = _alt; s.HotkeyWin = _win;
         s.SwallowWinShiftS = _swallow.IsChecked == true;
         s.ClipboardWatch = _clipboard.IsChecked == true;
@@ -171,32 +188,56 @@ public sealed class SettingsWindow : Window
         Close();
     }
 
-    // ---- tiny UI helpers ----
+    // ---- themed UI helpers ----
 
-    private static TextBlock Header(string t) => new()
+    private static Border Card(string title, params UIElement[] rows)
     {
-        Text = t, FontWeight = FontWeights.Bold, FontSize = 13,
-        Margin = new Thickness(0, 12, 0, 4), Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x82, 0xF6))
-    };
+        var panel = new StackPanel();
+        panel.Children.Add(new TextBlock
+        {
+            Text = title, FontWeight = FontWeights.SemiBold, FontSize = 12.5,
+            Foreground = Theme.Brush("Accent"), Margin = new Thickness(0, 0, 0, 8)
+        });
+        foreach (var r in rows) panel.Children.Add(r);
+        return new Border
+        {
+            Background = Theme.Brush("Panel"),
+            BorderBrush = Theme.Stroke(Theme.Border), BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(15, 13, 15, 14),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = panel
+        };
+    }
 
-    private static CheckBox Check(string t, bool v) =>
-        new() { Content = t, IsChecked = v, Margin = new Thickness(0, 3, 0, 3) };
+    private CheckBox Check(string t, bool v) =>
+        new() { Style = Theme.Style("Toggle"), Content = t, IsChecked = v, Margin = new Thickness(0, 4, 0, 4) };
 
-    private System.Windows.Controls.Button Btn(string t, Action onClick)
+    private static TextBlock Hint(string t) =>
+        new() { Text = t, Foreground = Theme.Brush("Muted"), FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 6) };
+
+    private TextBox Field(string text, bool readOnly) =>
+        new() { Style = Theme.Style("Field"), Text = text, IsReadOnly = readOnly };
+
+    private Button Btn(string t, Action onClick, bool primary)
     {
-        var b = new System.Windows.Controls.Button { Content = t, Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(6, 0, 0, 0), MinWidth = 70 };
+        var b = new Button
+        {
+            Style = Theme.Style(primary ? "PrimaryButton" : "GhostButton"),
+            Content = t, Margin = new Thickness(6, 0, 0, 0), MinWidth = 76
+        };
         b.Click += (_, _) => onClick();
         return b;
     }
 
     private static Grid Row(string label, FrameworkElement field, FrameworkElement? trailing)
     {
-        var g = new Grid { Margin = new Thickness(0, 3, 0, 3) };
+        var g = new Grid { Margin = new Thickness(0, 4, 0, 4) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, Foreground = Theme.Brush("Muted"), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(lbl, 0); g.Children.Add(lbl);
         Grid.SetColumn(field, 1); g.Children.Add(field);
         if (trailing != null) { Grid.SetColumn(trailing, 2); g.Children.Add(trailing); }
@@ -205,24 +246,28 @@ public sealed class SettingsWindow : Window
 
     private static Slider MakeSlider(int min, int max, int val) => new()
     {
+        Style = Theme.Style("Track"),
         Minimum = min, Maximum = max, Value = Math.Clamp(val, min, max),
-        TickFrequency = 1, IsSnapToTickEnabled = true, Width = 200
+        TickFrequency = 1, IsSnapToTickEnabled = true, Width = 240, VerticalAlignment = VerticalAlignment.Center
     };
 
-    private static Grid SliderRow(string label, Slider sl)
+    private static Grid SliderRow(string label, Slider sl, TextBlock? valueBlock)
     {
-        var g = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        var g = new Grid { Margin = new Thickness(0, 6, 0, 6) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(175) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
 
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, Foreground = Theme.Brush("Muted"), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(lbl, 0); g.Children.Add(lbl);
         Grid.SetColumn(sl, 1); g.Children.Add(sl);
 
-        var val = new TextBlock { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
-        val.Text = ((int)sl.Value).ToString();
-        sl.ValueChanged += (_, _) => val.Text = ((int)sl.Value).ToString();
+        var val = valueBlock ?? new TextBlock { Foreground = Theme.Brush("Muted"), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+        if (valueBlock == null)
+        {
+            val.Text = ((int)sl.Value).ToString();
+            sl.ValueChanged += (_, _) => val.Text = ((int)sl.Value).ToString();
+        }
         Grid.SetColumn(val, 2); g.Children.Add(val);
         return g;
     }

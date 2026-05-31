@@ -3,6 +3,75 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.2.0] - 2026-05-31
+
+Power-user round: the editor gets real object manipulation, captures gain a history
+gallery and window detection, and filenames become yours to template.
+
+### Added
+- **Editor object select / move / delete** — a Select tool (V): click an annotation to
+  pick it (handles + marquee), drag to move, Delete to remove. Move and delete are fully
+  **undo/redo**-able. Per-type aware (shapes by position, pen by points, arrows by geometry).
+- **Window auto-detection** — in the capture overlay, hover a window to highlight it
+  (punch-through + title), click (no drag) to capture just that window. Physical-pixel
+  rects via DWM extended frame bounds; cloaked/minimized windows skipped.
+- **Capture history gallery** (tray → 캡처 히스토리…) — browse every saved shot (scratch +
+  date folders + pinned) as a light thumbnail grid; per-tile **drag-out as a file**,
+  click-to-copy-image, edit, reveal, open, delete (to Recycle Bin). A rolling
+  `HistoryKeepRecent` buffer (default 50) keeps recent shots even with history off.
+- **Filename templates** — `{app} {title} {date} {time} {seq} {w} {h}` plus raw .NET date
+  formats (e.g. `{yyyy-MM-dd_HHmmss}`); the foreground app/window title is captured before
+  the overlay steals focus. Sanitized (invalid chars, reserved names, length) with a safe
+  fallback. Set it in Settings → 저장 → 파일 이름 형식.
+
+### Notes
+- True **MP4/H.264 video** was scoped and prototyped (Media Foundation SinkWriter, gated
+  opt-in with a GIF fallback) but **deferred**: it could not be verified in this build
+  environment (the MF sink writer object returned `E_NOINTERFACE` for `IMFSinkWriter`, i.e.
+  no functional H.264 sink to validate against), and shipping unverifiable COM interop
+  risks crashes on real hardware. GIF recording remains the video path. Tracked for a
+  future release pending validation on real machines.
+
+[1.2.0]: https://github.com/openwong2kim/wsnap/releases/tag/v1.2.0
+
+## [1.1.0] - 2026-05-31
+
+Big UX/UI release: the clipboard now works the way Windows users expect, the capture
+overlay is a precision tool, the editor is genuinely capable, and the whole app shares
+one dark design system.
+
+### Added
+- **Click = copy IMAGE** (not the file path) — and an opt-in **auto-copy on capture**, so
+  a shot is `Ctrl+V`-ready in Slack/Jira/Figma instantly. Multi-format clipboard
+  (DIB + PNG-with-alpha + FileDrop) with retry. `Ctrl+click` still copies the path.
+- **Post-capture action toolbar** at the selection: 복사 · 저장 · 편집 · 텍스트(OCR) ·
+  GIF · 고정, keyboard-driven (C/Enter/E/T/G/P, Esc). Toggle off in Settings for the
+  old instant flow.
+- **Frozen-screen overlay** with a **punch-through dim** (the selection reads bright, the
+  rest dims), a live **W×H badge**, and a **magnifier loupe** showing zoomed pixels,
+  cursor coordinates and the **hex colour** under the cursor (press **C** to copy it).
+- **Colour picker** (eyedropper) tray mode — click a pixel, get its `#RRGGBB`.
+- **Pin** a thumbnail so it never auto-dismisses; pinned shots are promoted out of `%TEMP%`
+  so temp cleanup can't delete them. `자동 사라짐 0초 = 끄기`.
+- **Thumbnail action bar**: 복사 · 저장 · 편집 · 텍스트 · 폴더에서 보기 · 공유(업로드) ·
+  고정 · 닫기 (icon buttons). The **Imgur upload** path is now wired to a Share button.
+- **Editor**: line, ellipse, highlighter, numbered-step badges, and a smooth blur (next to
+  mosaic); **redo** (Ctrl+Y / Ctrl+Shift+Z); **undoable crop**; **copy to clipboard**
+  (Ctrl+C); a **thickness** control; a custom **colour** picker; **Shift** to constrain
+  (45° lines / squares); active-tool & active-colour highlighting.
+- **More capture modes** in the tray: 전체 화면 · 현재 창 · 직전 영역 다시 캡처 ·
+  지연(3/5초) 캡처 · 캡처 폴더 열기.
+
+### Changed
+- **One dark design system** (`Theme.cs`) — the editor and settings no longer drop to white
+  OS chrome; title bars are dark (DWM). Settings re-skinned into cards with themed inputs.
+- Capture grab now uses physical cursor coordinates, fixing region size/position on
+  mixed-DPI multi-monitor setups; cropping from the frozen bitmap removes the old
+  grab-after-hide race.
+- Thumbnails get an entrance pop and a fading action bar.
+
+[1.1.0]: https://github.com/openwong2kim/wsnap/releases/tag/v1.1.0
+
 ## [1.0.2] - 2026-05-30
 
 ### Fixed

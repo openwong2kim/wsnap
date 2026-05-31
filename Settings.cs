@@ -15,9 +15,33 @@ public sealed class Settings
     public string SaveFolder { get; set; } = DefaultSaveFolder();
     public bool KeepHistory { get; set; } = false;          // permanent date-foldered archive
 
+    /// <summary>
+    /// Filename template (extension appended automatically). Tokens:
+    /// {app} {title} {date} {time} {seq} {w} {h}; literal text; or a raw .NET
+    /// date/time format inside braces, e.g. {yyyy-MM-dd}, {HHmmss}. Blank → default.
+    /// </summary>
+    public string FilenameTemplate { get; set; } = DefaultFilenameTemplate;
+
+    /// <summary>Built-in default; equivalent to the legacy snap_yyyyMMdd_HHmmss base.</summary>
+    public const string DefaultFilenameTemplate = "snap_{yyyy-MM-dd}_{HH-mm-ss}";
+
+    /// <summary>Rolling cap on the flat scratch folder so the history gallery has recent shots. 0 = unlimited.</summary>
+    public int HistoryKeepRecent { get; set; } = 50;
+
     // ---- Thumbnails ----
+    /// <summary>Seconds before a floating thumbnail auto-dismisses. 0 = never (keep until closed).</summary>
     public int AutoDismissSeconds { get; set; } = 6;
     public int MaxVisible { get; set; } = 5;
+
+    /// <summary>Put the captured image on the clipboard automatically (Ctrl+V ready). On by default.</summary>
+    public bool AutoCopyOnCapture { get; set; } = true;
+
+    /// <summary>After selecting a region, show a floating toolbar (copy/save/edit/OCR/GIF/pin) at the selection. On by default.</summary>
+    public bool PostCaptureToolbar { get; set; } = true;
+
+    // ---- Editor ----
+    /// <summary>Last-used annotation stroke thickness, remembered across edits.</summary>
+    public int EditorThickness { get; set; } = 5;
 
     // ---- Resident behaviour ----
     public bool StartWithWindows { get; set; } = false;
