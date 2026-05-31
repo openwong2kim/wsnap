@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
@@ -19,6 +20,12 @@ public sealed class ClipboardWatcher : IDisposable
     private HwndSource? _src;
     private uint _lastSeq;
     private readonly Action<string> _onImage;
+
+    // When wsnap itself writes an image to the clipboard (auto-copy on capture,
+    // "copy image" buttons), the resulting WM_CLIPBOARDUPDATE would otherwise echo
+    // back as a brand-new thumbnail. A small suppression counter swallows our own writes.
+    private static int _suppress;
+    public static void SuppressNext() => Interlocked.Exchange(ref _suppress, 1);
 
     public ClipboardWatcher(Action<string> onImageCaptured) => _onImage = onImageCaptured;
 
@@ -55,6 +62,7 @@ public sealed class ClipboardWatcher : IDisposable
             if (seq != _lastSeq)
             {
                 _lastSeq = seq;
+                if (Interlocked.Exchange(ref _suppress, 0) == 1) return IntPtr.Zero; // our own write
                 TryCaptureImage();
             }
         }

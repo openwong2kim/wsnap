@@ -49,6 +49,30 @@
 - ✅ 업로드 목적지 코드 경로 (Imgur, 옵트인) — `Uploader.cs` (⚙️ 사용자가 Client-ID 입력)
 - ✅ 클립보드 감지 모드 (다른 도구 캡처도 썸네일화) — `ClipboardWatcher.cs`
 
+## v1.1 — UX/UI 대개편 (best-in-class 정렬) ✅
+다각도 전문가 감사(capture UX·편집기·비주얼·아웃풋·경쟁사) 후 임팩트/리스크 순 구현.
+- ✅ **클립보드 우선**: 클릭=이미지 복사, 캡처 시 자동 복사(옵션), 다중 포맷(DIB+PNG+FileDrop) — `ImageClipboard.cs`
+- ✅ **선택 직후 액션 툴바**(복사·저장·편집·OCR·GIF·고정) — `CaptureOverlay.cs` (설정에서 끄기 가능)
+- ✅ **화면 프리즈 + punch-through 딤 + 실시간 W×H + 돋보기(픽셀 좌표·HEX 색)** — 캡처 후 Hide 레이스 제거
+- ✅ **혼합 DPI 그랩 정확도**: 물리 커서 좌표(GetCursorPos)로 그랩 → 멀티모니터 정확
+- ✅ **색 추출(스포이드) 모드** (CaptureMode.ColorPick)
+- ✅ **고정(Pin)**: 자동 사라짐 끄기 + `%TEMP%` 밖 승격 보존, `자동 사라짐 0초=끄기`
+- ✅ **썸네일 액션 바**: 복사·저장·편집·OCR·폴더·공유(Imgur)·고정·닫기 (벡터 아이콘) + 입장 팝 모션
+- ✅ **편집기 강화**: 직선·원·형광펜·번호 배지·흐림 추가, 두께/커스텀 색, Redo, 되돌릴 수 있는 크롭, 클립보드 복사, Shift 제약, 액티브 상태 표시
+- ✅ **캡처 모드 추가**: 전체 화면·현재 창·직전 영역 재캡처·지연(3/5초)·캡처 폴더 열기
+- ✅ **통일 디자인 시스템** `Theme.cs`(다크 토큰/컨트롤 스타일) + 다크 타이틀바(DWM), 설정창 다크 카드 재스킨
+- ✅ **벡터 아이콘** `Icons.cs` (랜딩과 동일 라인아트, 폰트 의존 없음)
+
+## v1.2 — 파워 유저 확장 ✅
+설계 워크플로우(기능별 정밀 스펙)로 도출 후 의존성 순서로 구현·헤드리스 검증.
+- ✅ **편집기 객체 선택/이동/삭제** (Select 도구 V, 핸들/마키, 타입별 Translate, MoveOp/DeleteOp undo/redo) — `EditorWindow.cs`
+- ✅ **창 자동 감지** (오버레이에서 창 호버 하이라이트 + 클릭=창 캡처, DWM 확장 프레임 경계·cloaked 제외) — `CaptureOverlay.cs`
+- ✅ **캡처 히스토리 갤러리** (스크래치+날짜폴더+pinned 열거, 타일 드래그아웃/복사/편집/폴더/열기/삭제, rolling keep-N 보존) — `HistoryWindow.cs`, `CaptureStore.cs`
+- ✅ **파일명 템플릿** ({app}/{title}/{date}/{time}/{seq}/{w}/{h} + 날짜 포맷, 새니타이즈·폴백, 전경 창 컨텍스트) — `CaptureStore.cs`, `App.cs`, `Settings.cs`
+
+### 보류 (검증 불가 → 향후)
+- 🔲 **진짜 MP4/H.264 녹화(+오디오)** — Media Foundation SinkWriter 인터롭으로 프로토타입(옵트인·코덱 프로브·GIF 폴백 설계)했으나, 본 빌드 환경에서 MF 싱크라이터가 `IMFSinkWriter`에 대해 `E_NOINTERFACE`(기능하는 H.264 싱크 부재)를 반환해 **검증 불가** → 실제 하드웨어 검증 전까지 보류. GIF 녹화가 영상 경로 유지.
+
 ---
 
 ## 남은 사람 몫 (코드 외)

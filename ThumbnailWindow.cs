@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -14,11 +17,12 @@ namespace Wsnap;
 /// <summary>
 /// The macOS-style floating thumbnail. Appears bottom-right after capture and
 /// STACKS upward when several captures are live (newest at the bottom).
-///  - LEFT-DRAG it out   -> delivers a real FileDrop. Stays put (drag it many places).
-///  - CLICK it           -> copies the file path to the clipboard.
-///  - Hover buttons      -> 편집(editor) / 텍스트(OCR) / ✕(close).
+///  - LEFT-DRAG it out    -> delivers a real FileDrop. Stays put (drag it many places).
+///  - CLICK it            -> copies the IMAGE to the clipboard (Ctrl+click = copy path).
+///  - Hover action bar    -> 복사 / 저장 / 편집 / 텍스트(OCR) / 폴더 / 공유 / 핀 / 닫기.
+///  - PIN it              -> never auto-dismisses; promoted out of %TEMP% so it survives.
 ///  - RIGHT-DRAG sideways -> flings it off the right edge to clear it.
-///  - Ignore it          -> auto-dismisses after Settings.AutoDismissSeconds.
+///  - Ignore it           -> auto-dismisses after Settings.AutoDismissSeconds (0 = never).
 /// </summary>
 public sealed class ThumbnailWindow : Window
 {
@@ -30,11 +34,13 @@ public sealed class ThumbnailWindow : Window
 
     private string _filePath;
     private readonly Image _img;
-    private readonly StackPanel _buttons;
+    private readonly Border _actionBar;
+    private readonly Border _root;
     private readonly Border? _badge;
+    private ToggleButton _pinBtn = null!;
     private readonly DispatcherTimer _dismiss;
     private System.Windows.Point _dragStart, _flingStart;
-    private bool _maybeDrag, _maybeFling, _closing;
+    private bool _maybeDrag, _maybeFling, _closing, _pinned;
 
     public ThumbnailWindow(string filePath, bool edited = false)
     {
@@ -46,38 +52,28 @@ public sealed class ThumbnailWindow : Window
         Background = System.Windows.Media.Brushes.Transparent;
         Topmost = true;
         ShowInTaskbar = false;
-        Width = 200;
-        Height = 150;
+        Width = 220;
+        Height = 158;
 
         _img = new Image { Source = LoadFrozen(filePath), Stretch = Stretch.Uniform, IsHitTestVisible = false };
 
-        _buttons = new StackPanel
-        {
-            Orientation = System.Windows.Controls.Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 4, 6, 0),
-            Visibility = Visibility.Hidden
-        };
-        _buttons.Children.Add(MiniButton("편집", EditCurrent));
-        _buttons.Children.Add(MiniButton("텍스트", OcrCurrent));
-        _buttons.Children.Add(MiniButton("✕", () => DismissSlide()));
+        _actionBar = BuildActionBar();
 
         if (edited)
         {
             _badge = new Border
             {
-                HorizontalAlignment = HorizontalAlignment.Right,
+                HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, 6, 8, 0),
+                Margin = new Thickness(8, 8, 0, 0),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(7, 2, 7, 2),
-                Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xF0, 0x3B, 0x82, 0xF6)),
+                Background = Theme.Stroke(Color.FromArgb(0xF0, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B)),
                 Child = new TextBlock
                 {
                     Text = "수정됨",
                     Foreground = System.Windows.Media.Brushes.White,
-                    FontSize = 10.5, FontWeight = FontWeights.SemiBold
+                    FontSize = 10.5, FontWeight = FontWeights.SemiBold, FontFamily = Theme.Font
                 }
             };
         }
@@ -85,19 +81,20 @@ public sealed class ThumbnailWindow : Window
         var grid = new Grid();
         grid.Children.Add(_img);
         if (_badge != null) grid.Children.Add(_badge);
-        grid.Children.Add(_buttons);
+        grid.Children.Add(_actionBar);
 
-        var border = new Border
+        _root = new Border
         {
-            CornerRadius = new CornerRadius(10),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1E, 0x1E, 0x1E)),
-            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x82, 0xF6)),
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(6),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 3, Opacity = 0.5 },
+            CornerRadius = new CornerRadius(12),
+            Background = Theme.Stroke(Color.FromRgb(0x12, 0x13, 0x15)),
+            BorderBrush = Theme.Stroke(Theme.BorderStrong),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(5),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 22, ShadowDepth = 4, Opacity = 0.55, Color = Colors.Black },
             Child = grid
         };
-        Content = border;
+        // crisp clip so the image respects the rounded corners
+        Content = _root;
 
         MouseLeftButtonDown += OnDown;
         MouseRightButtonDown += OnRightDown;
@@ -106,14 +103,14 @@ public sealed class ThumbnailWindow : Window
         MouseEnter += (_, _) =>
         {
             _dismiss?.Stop();
-            _buttons.Visibility = Visibility.Visible;
-            if (_badge != null) _badge.Visibility = Visibility.Hidden;   // buttons take the corner
+            FadeBar(true);
+            if (_badge != null) _badge.Visibility = Visibility.Hidden;
         };
         MouseLeave += (_, _) =>
         {
-            _buttons.Visibility = Visibility.Hidden;
+            FadeBar(false);
             if (_badge != null) _badge.Visibility = Visibility.Visible;
-            if (!_closing) _dismiss?.Start();
+            StartDismissIfEnabled();
         };
 
         _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Math.Max(1, Settings.Current.AutoDismissSeconds)) };
@@ -124,24 +121,99 @@ public sealed class ThumbnailWindow : Window
         while (Stack.Count > max) Stack[0].DismissNow();
 
         Reflow();
-        _dismiss.Start();
+        // entrance pop
+        Loaded += (_, _) => PlayPop();
+        StartDismissIfEnabled();
     }
 
-    private static System.Windows.Controls.Button MiniButton(string text, Action onClick)
+    // ---------- action bar ----------
+
+    private Border BuildActionBar()
     {
-        var b = new System.Windows.Controls.Button
+        var bar = new StackPanel
         {
-            Content = text,
-            FontSize = 11,
-            Padding = new Thickness(5, 1, 5, 1),
-            Margin = new Thickness(2, 0, 0, 0),
-            Cursor = Cursors.Hand,
-            Foreground = System.Windows.Media.Brushes.White,
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xCC, 0x33, 0x33, 0x33)),
-            BorderThickness = new Thickness(0)
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
+
+        bar.Children.Add(IconBtn("copy", "이미지 복사 (Ctrl+클릭=경로)", CopyImage));
+        bar.Children.Add(IconBtn("save", "다른 이름으로 저장", SaveAs));
+        bar.Children.Add(IconBtn("edit", "편집", EditCurrent));
+        bar.Children.Add(IconBtn("text", "텍스트 추출 (OCR)", OcrCurrent));
+        bar.Children.Add(IconBtn("folder", "폴더에서 보기", Reveal));
+        if (Uploader.Available)
+            bar.Children.Add(IconBtn("share", "업로드 후 링크 복사", ShareCurrent));
+        _pinBtn = PinToggle();
+        bar.Children.Add(_pinBtn);
+        bar.Children.Add(IconBtn("close", "닫기", () => DismissSlide(), danger: true));
+
+        return new Border
+        {
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Height = 34,
+            CornerRadius = new CornerRadius(0, 0, 8, 8),
+            Background = Theme.Stroke(Color.FromArgb(0xE6, 0x12, 0x13, 0x15)),
+            Child = bar,
+            Opacity = 0,
+            IsHitTestVisible = false
+        };
+    }
+
+    private Button IconBtn(string icon, string tip, Action onClick, bool danger = false)
+    {
+        var brush = danger ? Theme.Brush("Muted") : Theme.Brush("Muted");
+        var b = new Button
+        {
+            Style = Theme.Style("SubtleButton"),
+            Width = 26, Height = 26,
+            Padding = new Thickness(0),
+            Margin = new Thickness(1, 0, 1, 0),
+            Content = Icons.Make(icon, 15, Theme.Brush("Muted")),
+            ToolTip = tip
+        };
+        // brighten the glyph on hover
+        b.MouseEnter += (_, _) => b.Content = Icons.Make(icon, 15, danger ? Theme.Brush("Danger") : Theme.Brush("Text"));
+        b.MouseLeave += (_, _) => b.Content = Icons.Make(icon, 15, Theme.Brush("Muted"));
         b.Click += (_, e) => { e.Handled = true; onClick(); };
         return b;
+    }
+
+    private ToggleButton PinToggle()
+    {
+        var t = new ToggleButton
+        {
+            Style = Theme.Style("ToolToggle"),
+            Width = 26, Height = 26,
+            Padding = new Thickness(0),
+            Margin = new Thickness(1, 0, 1, 0),
+            Content = Icons.Make("pin", 15, Theme.Brush("Muted")),
+            ToolTip = "고정 (자동 사라짐 끄기)"
+        };
+        t.Checked += (_, e) => { e.Handled = true; SetPinned(true); };
+        t.Unchecked += (_, e) => { e.Handled = true; SetPinned(false); };
+        t.MouseEnter += (_, _) => { if (t.IsChecked != true) t.Content = Icons.Make("pin", 15, Theme.Brush("Text")); };
+        t.MouseLeave += (_, _) => { if (t.IsChecked != true) t.Content = Icons.Make("pin", 15, Theme.Brush("Muted")); };
+        return t;
+    }
+
+    private void FadeBar(bool show)
+    {
+        _actionBar.IsHitTestVisible = show;
+        _actionBar.BeginAnimation(OpacityProperty,
+            new DoubleAnimation(show ? 1 : 0, TimeSpan.FromMilliseconds(show ? 130 : 160))
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+
+    private void PlayPop()
+    {
+        var st = new ScaleTransform(0.86, 0.86);
+        _root.RenderTransformOrigin = new System.Windows.Point(0.5, 0.9);
+        _root.RenderTransform = st;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var a = new DoubleAnimation(0.86, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = ease };
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
     }
 
     private static BitmapImage LoadFrozen(string path)
@@ -175,6 +247,41 @@ public sealed class ThumbnailWindow : Window
         foreach (var w in Stack.ToArray()) w.DismissNow();
     }
 
+    /// <summary>Programmatically pin (used by the capture toolbar's Pin action).</summary>
+    public void PinNow() { _pinBtn.IsChecked = true; }
+
+    // ---- dismiss policy ----
+
+    private void StartDismissIfEnabled()
+    {
+        if (_closing || _pinned) return;
+        if (Settings.Current.AutoDismissSeconds <= 0) return;   // 0 = never
+        if (IsMouseOver) return;
+        _dismiss.Interval = TimeSpan.FromSeconds(Settings.Current.AutoDismissSeconds);
+        _dismiss.Start();
+    }
+
+    private void SetPinned(bool on)
+    {
+        _pinned = on;
+        if (on)
+        {
+            _dismiss.Stop();
+            string moved = CaptureStore.PromoteToPinned(_filePath);
+            if (!string.Equals(moved, _filePath, StringComparison.OrdinalIgnoreCase))
+                _filePath = moved;
+            _root.BorderBrush = Theme.Brush("Accent");
+            _pinBtn.Content = Icons.Make("pin", 15, System.Windows.Media.Brushes.White);
+            Toast.Show("고정됨 — 자동으로 사라지지 않아요");
+        }
+        else
+        {
+            _root.BorderBrush = Theme.Stroke(Theme.BorderStrong);
+            _pinBtn.Content = Icons.Make("pin", 15, Theme.Brush("Muted"));
+            StartDismissIfEnabled();
+        }
+    }
+
     // ---- input ----
 
     private void OnDown(object sender, MouseButtonEventArgs e) { _dragStart = e.GetPosition(this); _maybeDrag = true; }
@@ -202,18 +309,60 @@ public sealed class ThumbnailWindow : Window
         data.SetFileDropList(new StringCollection { _filePath });
         DragDrop.DoDragDrop(this, data, System.Windows.DragDropEffects.Copy);
 
-        if (!IsMouseOver) _dismiss.Start();   // reusable; keep on screen
+        StartDismissIfEnabled();   // reusable; keep on screen
     }
 
     private void OnUp(object sender, MouseButtonEventArgs e)
     {
         if (!_maybeDrag) return;
         _maybeDrag = false;
-        System.Windows.Clipboard.SetText(_filePath);
-        Toast.Show("경로 복사됨");
+        // Ctrl+click = copy the path (power users / terminals); plain click = copy IMAGE.
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            ImageClipboard.CopyText(_filePath);
+            Toast.Show("경로 복사됨");
+        }
+        else CopyImage();
     }
 
     // ---- actions ----
+
+    private void CopyImage()
+    {
+        if (ImageClipboard.CopyImageFile(_filePath)) Toast.Show("이미지 복사됨 ✓");
+        else Toast.Show("복사 실패 — 클립보드를 사용하는 다른 앱이 있을 수 있어요");
+    }
+
+    private void SaveAs()
+    {
+        _dismiss.Stop();
+        try
+        {
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "PNG 이미지 (*.png)|*.png|모든 파일 (*.*)|*.*",
+                FileName = Path.GetFileName(_filePath),
+                Title = "캡처 저장"
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                File.Copy(_filePath, dlg.FileName, overwrite: true);
+                Toast.Show("저장됨 ✓");
+            }
+        }
+        catch (Exception ex) { CrashLog.Write("save-as", ex); Toast.Show("저장 실패"); }
+        finally { StartDismissIfEnabled(); }
+    }
+
+    private void Reveal()
+    {
+        try
+        {
+            if (File.Exists(_filePath))
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_filePath}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex) { CrashLog.Write("reveal", ex); }
+    }
 
     private void EditCurrent()
     {
@@ -225,7 +374,7 @@ public sealed class ThumbnailWindow : Window
             // leaving the original in place — same flow as a new capture.
             if (!string.IsNullOrEmpty(ed.ResultPath))
                 new ThumbnailWindow(ed.ResultPath!, edited: true).Show();
-            if (!_closing && !IsMouseOver) _dismiss.Start();
+            StartDismissIfEnabled();
         };
         ed.Show();
         ed.Activate();
@@ -245,14 +394,28 @@ public sealed class ThumbnailWindow : Window
                 Toast.Show("인식된 텍스트 없음");
             else
             {
-                System.Windows.Clipboard.SetText(text);
+                ImageClipboard.CopyText(text);
                 Toast.Show("텍스트 복사됨 ✓");
             }
         }
         catch (Exception ex) { CrashLog.Write("ocr-thumb", ex); Toast.Show("OCR 실패"); }
-        finally { if (!_closing && !IsMouseOver) _dismiss.Start(); }
+        finally { StartDismissIfEnabled(); }
     }
 
+    private async void ShareCurrent()
+    {
+        if (!Uploader.Available) { Toast.Show("업로드 비활성화됨 — 설정에서 Imgur 켜기", 2600); return; }
+        _dismiss.Stop();
+        Toast.Show("업로드 중…");
+        try
+        {
+            string? url = await Uploader.UploadImgurAsync(_filePath);
+            if (string.IsNullOrEmpty(url)) Toast.Show("업로드 실패");
+            else { ImageClipboard.CopyText(url); Toast.Show("링크 복사됨 ✓", 2200); }
+        }
+        catch (Exception ex) { CrashLog.Write("share-thumb", ex); Toast.Show("업로드 실패"); }
+        finally { StartDismissIfEnabled(); }
+    }
 
     // ---- dismissal ----
 
@@ -270,7 +433,7 @@ public sealed class ThumbnailWindow : Window
         _closing = true;
         _dismiss.Stop();
         Reflow();
-        var anim = new DoubleAnimation(Left, SystemParameters.WorkArea.Right + Width, TimeSpan.FromMilliseconds(180))
+        var anim = new DoubleAnimation(Left, SystemParameters.WorkArea.Right + Width, TimeSpan.FromMilliseconds(190))
         { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
         anim.Completed += (_, _) => Close();
         BeginAnimation(LeftProperty, anim);
