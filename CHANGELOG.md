@@ -3,6 +3,27 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.2.1] - 2026-06-01
+
+### Changed
+- **License: Apache-2.0 → GPL-3.0.** wsnap is now copyleft — redistributed or modified
+  versions must also be open source under the GPL. `LICENSE` (full GPLv3), `NOTICE`, every
+  source file header, and the scoop/winget/landing metadata were updated accordingly.
+- Capture default restored to **instant thumbnail**: dragging a region pops the bottom-right
+  thumbnail immediately (auto-copy still on). The post-capture action toolbar is now **opt-in**
+  (Settings → 캡처) instead of the default, matching wsnap's drag→thumbnail identity.
+
+### Fixed
+- **Mosaic/blur now actually redacts.** A GDI+ edge-sampling bug dropped the alpha of the
+  top/edge blocks (~50% transparent), so the original text showed straight through. Edge
+  sampling is now clamped (WrapMode.TileFlipXY) → fully opaque blocks; verified that OCR can
+  no longer read a mosaicked region. Block strength is also tied to the thickness control
+  (가늘게/보통/굵게) so it can be cranked up.
+- **OCR on small text** is more accurate: captures are auto-upscaled (high-quality, up to 3×)
+  before recognition, which the Windows OCR engine handles much better.
+
+[1.2.1]: https://github.com/openwong2kim/wsnap/releases/tag/v1.2.1
+
 ## [1.2.0] - 2026-05-31
 
 Power-user round: the editor gets real object manipulation, captures gain a history

@@ -14,3 +14,5 @@ publish/
 # Logs / local
 *.log
 .mp4check/
+.ocrcheck/
+.mosaiccheck/

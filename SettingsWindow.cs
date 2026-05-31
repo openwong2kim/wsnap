@@ -1,3 +1,16 @@
+// wsnap — macOS-style screen capture for Windows.
+// Copyright (C) 2026 openwong2kim and wsnap contributors.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License version 3, as published
+// by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+// or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+// for more details. You should have received a copy of the GNU General
+// Public License along with this program. If not, see
+// <https://www.gnu.org/licenses/>.
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -74,8 +87,11 @@ public sealed class SettingsWindow : Window
 
         // --- capture ---
         _autocopy = Check("캡처하면 자동으로 클립보드에 복사 (Ctrl+V 바로 붙여넣기)", s.AutoCopyOnCapture);
-        _toolbar = Check("영역 선택 후 액션 툴바 표시 (복사·저장·편집·OCR·GIF·고정)", s.PostCaptureToolbar);
-        root.Children.Add(Card("캡처", _autocopy, _toolbar));
+        _toolbar = Check("영역 선택 후 액션 툴바 표시 (끄면: 드래그하면 즉시 우하단 썸네일)", s.PostCaptureToolbar);
+        root.Children.Add(Card("캡처",
+            _autocopy,
+            _toolbar,
+            Hint("기본값: 끔 — 드래그하면 캡처가 바로 우하단 썸네일로 떠오릅니다. 켜면 선택 영역에 복사·저장·편집·OCR·GIF·고정 툴바가 표시됩니다.")));
 
         // --- thumbnails ---
         _fade = MakeSlider(0, 30, s.AutoDismissSeconds);

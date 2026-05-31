@@ -38,7 +38,7 @@
 - ✅ 자체 포함 단일 .exe (`publish.ps1`) + 인스톨러 스크립트(`installer.iss`, Inno Setup)
 - ✅ 충돌/예외 처리 (전역 핸들러 + 로컬 로그) — `CrashLog.cs`
 - ✅ 텔레메트리(옵트인, 로컬 전용) — `CrashLog.Telemetry`
-- ✅ 문서(README), 랜딩 페이지(`site/index.html`), Apache-2.0 라이선스(`LICENSE` + `NOTICE`)
+- ✅ 문서(README), 랜딩 페이지(`site/index.html`), GPL-3.0 라이선스(`LICENSE` + `NOTICE`) — v1.2.1에서 Apache-2.0 → GPL-3.0 전환
 - 🟡 다중 모니터·고DPI: 코드 대응 완료(PerMonitorV2), 실제 회귀 테스트는 기기 필요
 - ⚙️ 코드 서명 인증서 (SmartScreen 회피) — 인증서 구매·서명 필요
 - ⚙️ GitHub 공개 / winget 등록 — 저장소 생성·게시 필요
