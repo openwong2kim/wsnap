@@ -1,3 +1,16 @@
+// wsnap — macOS-style screen capture for Windows.
+// Copyright (C) 2026 openwong2kim and wsnap contributors.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License version 3, as published
+// by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+// or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+// for more details. You should have received a copy of the GNU General
+// Public License along with this program. If not, see
+// <https://www.gnu.org/licenses/>.
 using System;
 using System.IO;
 using System.Text.Json;
@@ -36,8 +49,9 @@ public sealed class Settings
     /// <summary>Put the captured image on the clipboard automatically (Ctrl+V ready). On by default.</summary>
     public bool AutoCopyOnCapture { get; set; } = true;
 
-    /// <summary>After selecting a region, show a floating toolbar (copy/save/edit/OCR/GIF/pin) at the selection. On by default.</summary>
-    public bool PostCaptureToolbar { get; set; } = true;
+    /// <summary>After selecting a region, show a floating action toolbar at the selection instead of
+    /// instantly popping the thumbnail. OFF by default — wsnap's identity is drag → instant thumbnail.</summary>
+    public bool PostCaptureToolbar { get; set; } = false;
 
     // ---- Editor ----
     /// <summary>Last-used annotation stroke thickness, remembered across edits.</summary>

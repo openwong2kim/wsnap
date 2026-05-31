@@ -1,3 +1,16 @@
+// wsnap — macOS-style screen capture for Windows.
+// Copyright (C) 2026 openwong2kim and wsnap contributors.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License version 3, as published
+// by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+// or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+// for more details. You should have received a copy of the GNU General
+// Public License along with this program. If not, see
+// <https://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -150,8 +163,8 @@ public sealed class EditorWindow : Window
         ToolBtn("형광", Tool.Highlight, "형광펜 (H)");
         ToolBtn("텍스트", Tool.Text, "텍스트 (T)");
         ToolBtn("번호", Tool.Counter, "번호 단계 (N)");
-        ToolBtn("모자이크", Tool.Mosaic, "모자이크 (M)");
-        ToolBtn("흐림", Tool.Blur, "흐림 (B)");
+        ToolBtn("모자이크", Tool.Mosaic, "모자이크 (M) · 두께로 강도 조절 (굵게=완전 가림)");
+        ToolBtn("흐림", Tool.Blur, "흐림 (B) · 두께로 강도 조절");
         ToolBtn("자르기", Tool.Crop, "자르기 (C) · Shift=정사각");
 
         bar.Children.Add(Sep());
@@ -603,28 +616,43 @@ public sealed class EditorWindow : Window
         x = Math.Clamp(x, 0, _pw - 1); y = Math.Clamp(y, 0, _ph - 1);
         w = Math.Clamp(w, 1, _pw - x); h = Math.Clamp(h, 1, _ph - y);
 
-        int divisor = mosaic ? 12 : 5;
-        int sw = Math.Max(1, w / (mosaic ? divisor : divisor * 3));
-        int sh = Math.Max(1, h / (mosaic ? divisor : divisor * 3));
+        // Block size (px) scales with the thickness control: 가늘게(2)≈16 · 보통(5)≈35 · 굵게(10)≈70.
+        // Big enough that each block spans whole glyphs so text truly disappears (not just blurs).
+        int block = Math.Clamp((int)Math.Round(_thickness * 7), 16, 128);
+        int sw = Math.Max(1, w / block);
+        int sh = Math.Max(1, h / block);
 
-        using var region = _srcBmp.Clone(new Drawing.Rectangle(x, y, w, h), _srcBmp.PixelFormat);
-        using var small = new Drawing.Bitmap(sw, sh);
+        // Clamp edge sampling (WrapMode.TileFlipXY): without it, GDI+ samples just outside the
+        // image at the first/last row+col and blends with transparent pixels, which DROPS the
+        // alpha of the edge blocks (e.g. a sparse top line came out ~50% transparent and the
+        // original text showed straight through). Clamping keeps every block fully opaque.
+        using var ia = new Drawing.Imaging.ImageAttributes();
+        ia.SetWrapMode(Drawing.Drawing2D.WrapMode.TileFlipXY);
+
+        using var region = _srcBmp.Clone(new Drawing.Rectangle(x, y, w, h), Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using var small = new Drawing.Bitmap(sw, sh, Drawing.Imaging.PixelFormat.Format32bppArgb);
         using (var g = Drawing.Graphics.FromImage(small))
         {
             g.InterpolationMode = Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
-            g.DrawImage(region, 0, 0, sw, sh);
+            g.PixelOffsetMode = Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+            g.DrawImage(region, new Drawing.Rectangle(0, 0, sw, sh), 0, 0, region.Width, region.Height, Drawing.GraphicsUnit.Pixel, ia);
         }
-        using var big = new Drawing.Bitmap(w, h);
+        using var big = new Drawing.Bitmap(w, h, Drawing.Imaging.PixelFormat.Format32bppArgb);
         using (var g = Drawing.Graphics.FromImage(big))
         {
             g.InterpolationMode = mosaic
                 ? Drawing.Drawing2D.InterpolationMode.NearestNeighbor
                 : Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
             g.PixelOffsetMode = Drawing.Drawing2D.PixelOffsetMode.Half;
-            g.DrawImage(small, 0, 0, w, h);
+            g.DrawImage(small, new Drawing.Rectangle(0, 0, w, h), 0, 0, small.Width, small.Height, Drawing.GraphicsUnit.Pixel, ia);
         }
+        big.SetResolution(96f, 96f);
 
-        var img = new Image { Source = ToBitmapSource(big), Width = w, Height = h, IsHitTestVisible = false };
+        var img = new Image
+        {
+            Source = ToBitmapSource(big), Width = w, Height = h,
+            Stretch = Stretch.Fill, IsHitTestVisible = false
+        };
         Canvas.SetLeft(img, x); Canvas.SetTop(img, y);
         Commit(new AddOp(_canvas, img));
     }
