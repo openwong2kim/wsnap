@@ -1,12 +1,12 @@
 PackageIdentifier: openwong2kim.wsnap
-PackageVersion: 1.2.0
+PackageVersion: 1.2.1
 PackageLocale: en-US
 Publisher: openwong2kim
 PublisherUrl: https://github.com/openwong2kim
 PublisherSupportUrl: https://github.com/openwong2kim/wsnap/issues
 PackageName: wsnap
 PackageUrl: https://github.com/openwong2kim/wsnap
-License: Apache-2.0
+License: GPL-3.0-only
 LicenseUrl: https://github.com/openwong2kim/wsnap/blob/main/LICENSE
 Copyright: Copyright 2026 openwong2kim and wsnap contributors
 ShortDescription: macOS-style screen capture for Windows with drag-and-drop as the primary action.
