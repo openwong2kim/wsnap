@@ -31,7 +31,7 @@ dark UI that lives in the tray.
 1. **Clipboard-first** — capture = image on clipboard, instantly. No folder digging, no "path vs image" trap.
 2. **Drag-out as a real file** — the floating thumbnail is a draggable file, and it persists so you can drop it in several places.
 3. **Genuinely good offline OCR** — PaddleOCR PP-OCRv5 on ONNX, accurate on mixed Korean/English, fully offline, no language pack.
-4. **One beautiful dark UI** — overlay, editor, settings all share a design system; pixel loupe + HEX readout; mixed-DPI correct.
+4. **One beautiful dark UI** — overlay, editor, settings all share a design system; pixel loupe + HEX readout; PerMonitorV2 DPI-aware.
 5. **Quiet & private** — lean tray footprint, no tracking, opt-in everything. GPL-3.0, open source.
 
 ## Proof points
