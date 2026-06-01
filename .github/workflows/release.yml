@@ -26,6 +26,31 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish
 
+      # --- Code signing (SignPath) — only runs once SIGNPATH_ORGANIZATION_ID is set ---
+      # Sign the exe BEFORE the installer is built, so the installer embeds the signed exe.
+      # Until SignPath is configured (vars/secrets empty) every signing step is skipped and
+      # the release ships unsigned exactly as before.
+      - name: Upload unsigned exe (for signing)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        id: upload-exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: wsnap-exe-unsigned
+          path: publish/wsnap.exe
+
+      - name: Sign exe (SignPath)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'wsnap' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIG_EXE || 'exe' }}
+          github-artifact-id: ${{ steps.upload-exe.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: publish   # overwrites publish/wsnap.exe with the signed one
+
       - name: Build installer (Inno Setup)
         shell: pwsh
         run: |
@@ -33,6 +58,27 @@ jobs:
           $ver = "${{ github.ref_name }}" -replace '^v', ''
           if (-not $ver) { $ver = '1.0.1' }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$ver" installer.iss
+
+      - name: Upload unsigned installer (for signing)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        id: upload-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: wsnap-installer-unsigned
+          path: dist/wsnap-setup-*.exe
+
+      - name: Sign installer (SignPath)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'wsnap' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIG_INSTALLER || 'installer' }}
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist     # overwrites dist/wsnap-setup-*.exe with the signed one
 
       - name: Package portable zip + checksums
         shell: pwsh
