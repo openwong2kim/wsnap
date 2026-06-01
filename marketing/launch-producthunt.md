@@ -29,7 +29,7 @@ so you can drop it in several places.
 ✏️ A toolbar at your selection: copy, save, edit, OCR, GIF, pin.
 🔤 **Offline OCR that's actually good on Korean + English** (PaddleOCR PP-OCRv5 on ONNX,
 models embedded — no language pack). Windows' built-in OCR kept mangling mixed text for me.
-🌙 One dark UI across overlay/editor/settings, pixel loupe + HEX readout, mixed-DPI correct.
+🌙 One dark UI across overlay/editor/settings, pixel loupe + HEX readout, PerMonitorV2 DPI-aware.
 🔒 No account, no forced uploads, opt-in telemetry, local log. **Open source, GPL-3.0.**
 
 It's a single self-contained exe (portable zip + Scoop too), lean in the tray. Honest caveats:

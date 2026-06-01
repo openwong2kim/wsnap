@@ -10,13 +10,13 @@ private, open-source** package — not raw feature count (ShareX wins on sheer b
 | **Drag thumbnail out as a real file** | ✅ | ❌ | ⚠️ via after-capture window | ❌ | ❌ | ❌ |
 | Floating, re-draggable thumbnail | ✅ | ❌ | ⚠️ | ❌ | ❌ | ❌ |
 | Action toolbar *at the selection* | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ✅ |
-| Pixel loupe + HEX color readout | ✅ | ❌ | ✅ | ✅ | ❌ | ⚠️ |
+| Pixel loupe + HEX color readout | ✅ | ❌ | ✅ | ✅ | ✅ | ⚠️ |
 | Annotation editor | ✅ (11 tools, undo+redo, redaction) | ⚠️ basic | ✅ | ✅ | ✅ | ⚠️ basic |
 | **Offline OCR, strong on KO+EN** | ✅ PP-OCRv5 | ⚠️ Win OCR | ⚠️ Win/Tesseract | ❌ | ⚠️ plugin | ❌ |
 | GIF / screen recording | ✅ GIF | ⚠️ video | ✅ | ❌ | ❌ | ❌ |
 | Scrolling capture | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| Mixed-DPI multi-monitor correct | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ |
-| No account / no forced upload | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ uploads by default |
+| PerMonitorV2 / DPI-aware | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ |
+| No account / no forced upload | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ upload-centric |
 | Free for commercial use | ✅ GPL-3.0 | ✅ | ✅ | ⚠️ free personal only | ✅ | ✅ |
 | Open source | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | Resident footprint | Lean (single-digit WS idle) | n/a built-in | Moderate–heavy | Light (native) | Light | Light |

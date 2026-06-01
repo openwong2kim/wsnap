@@ -33,10 +33,10 @@ A few things I cared about while building it:
 - **Private.** No account, no forced uploads, no tracking. Telemetry is opt-in and writes to
   a local log only.
 - **One dark UI** for the overlay, the annotation editor, and settings, with a pixel loupe +
-  HEX color readout, and correct behavior on mixed-DPI multi-monitor setups.
+  HEX color readout, and PerMonitorV2 DPI-awareness.
 
-Stack: C# / .NET 8 / WPF, ConPTY-free native Win32 + WinRT, RapidOcrNet for the ONNX OCR.
-It ships as a single self-contained exe. It's GPL-3.0.
+Stack: C# / .NET 8 / WPF, Win32 interop for capture / clipboard / global hotkeys, and
+ONNX Runtime (RapidOcrNet) for the OCR. It ships as a single self-contained exe. It's GPL-3.0.
 
 Caveats, up front: it's Windows-only (x64), and it's **not code-signed yet**, so SmartScreen
 will warn about an unknown publisher — OSS signing is wired up and pending. Scrolling capture
