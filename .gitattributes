@@ -1,0 +1,9 @@
+# Keep OCR model binaries byte-exact (never line-ending normalized).
+*.onnx binary
+*.png binary
+*.gif binary
+*.ico binary
+
+# The OCR dictionary is read by the recognizer and embedded into the exe verbatim.
+# Force LF so an autocrlf checkout can't append CR to every key and corrupt recognition.
+models/v5/*.txt text eol=lf

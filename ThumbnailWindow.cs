@@ -470,7 +470,7 @@ public sealed class ThumbnailWindow : Window
             using var bmp = new System.Drawing.Bitmap(_filePath);
             string? text = await Ocr.RecognizeAsync(bmp);
             if (text == null)
-                Toast.Show("OCR 사용 불가 (언어팩 설치 필요)", 2600);
+                Toast.Show("OCR 사용 불가 (모델 파일 누락)", 2600);
             else if (text.Trim().Length == 0)
                 Toast.Show("인식된 텍스트 없음");
             else

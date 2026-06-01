@@ -256,7 +256,7 @@ public partial class App : System.Windows.Application
         {
             Toast.Show("텍스트 인식 중…");
             string? text = await Ocr.RecognizeAsync(bmp);
-            if (text == null) Toast.Show("OCR 사용 불가 (언어팩 설치 필요)", 2600);
+            if (text == null) Toast.Show("OCR 사용 불가 (모델 파일 누락)", 2600);
             else if (text.Trim().Length == 0) Toast.Show("인식된 텍스트 없음");
             else { ImageClipboard.CopyText(text); Toast.Show("텍스트 복사됨 ✓"); }
         }
