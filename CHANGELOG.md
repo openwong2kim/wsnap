@@ -3,6 +3,19 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.2.2] - 2026-06-01
+
+### Fixed
+- **Multi-monitor placement.** The bottom-right floating widgets — the capture thumbnail
+  and the toast notification — clashed with the taskbar once a second monitor was attached
+  (single-monitor was fine). Root cause: `SystemParameters.WorkArea` and `Window.Left/Top`
+  are primary-monitor-only logical (DIU) coordinates, and under PerMonitorV2 awareness a
+  secondary monitor at a different scale breaks that mapping. They are now placed in real
+  device pixels on the monitor under the cursor via a new `MonitorPlacement` helper
+  (`SetWindowPos`), so they sit correctly on whichever screen you're working on.
+
+[1.2.2]: https://github.com/openwong2kim/wsnap/releases/tag/v1.2.2
+
 ## [1.2.1] - 2026-06-01
 
 ### Changed

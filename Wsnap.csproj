@@ -11,7 +11,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>wsnap.ico</ApplicationIcon>
     <AssemblyName>wsnap</AssemblyName>
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <RootNamespace>Wsnap</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks> <!-- scroll-capture row matching uses pointers -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn> <!-- DPI is set via WPF manifest; WinForms hint is moot. -->
