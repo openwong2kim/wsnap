@@ -31,7 +31,7 @@ that core in one consistent dark UI, running quietly from the tray.
 
 ## Features
 
-- **Capture → floating thumbnail → drag-and-drop.** Up to *N* thumbnails stack at the bottom-right.
+- **Capture → floating thumbnail → drag-and-drop.** Thumbnails stack at the bottom-right, up to a configurable number.
 - **Clipboard-first.** Click = copy the image; auto-copy on capture (optional) so it's ready before you even click. `Ctrl+Click` = copy the file path.
 - **Action toolbar at your selection** — Copy · Save · Edit · OCR · GIF · Pin (keys `C / Enter / E / T / G / P`, `Esc` to cancel).
 - **Precise overlay.** Freezes the screen, brightens only your selection (punch-through dim), shows live W×H, and a **magnifier loupe** with pixel coordinates and the HEX color under the cursor. Physical-pixel cursor grab — correct on mixed-DPI multi-monitor setups.
@@ -48,6 +48,8 @@ that core in one consistent dark UI, running quietly from the tray.
 - **Optional sharing.** Imgur upload (bring your own Client-ID) from the thumbnail.
 
 ## Install
+
+**Windows 10/11, x64.**
 
 **Package managers**
 
