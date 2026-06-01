@@ -3,6 +3,18 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.3.1] - 2026-06-02
+
+### Legal / packaging
+- **Third-party license notices now ship with wsnap.** v1.3.0 bundles the ONNX Runtime,
+  SkiaSharp, RapidOcrNet, Clipper2, and PaddleOCR PP-OCRv5 models into the exe — all under
+  permissive licenses (MIT / Apache-2.0 / BSD-3 / Boost) compatible with wsnap's GPL-3.0,
+  but their attribution/license texts weren't being conveyed with the binary. Added
+  `THIRD-PARTY-NOTICES.md`, included it in the installer, and the portable zip now bundles
+  `LICENSE`, `NOTICE`, and `THIRD-PARTY-NOTICES.md` alongside the exe. No code change.
+
+[1.3.1]: https://github.com/openwong2kim/wsnap/releases/tag/v1.3.1
+
 ## [1.3.0] - 2026-06-01
 
 ### Changed
