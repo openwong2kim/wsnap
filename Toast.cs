@@ -14,6 +14,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -65,9 +66,14 @@ public sealed class Toast : Window
     private void ShowSelf()
     {
         Show();
-        var wa = SystemParameters.WorkArea;
-        Left = wa.Right - ActualWidth - 24;
-        Top = wa.Bottom - ActualHeight - 24;
+        // Place in physical pixels on the cursor's monitor — SystemParameters.WorkArea is
+        // primary-monitor-only and misplaces the toast (taskbar clash) on multi-monitor /
+        // mixed-DPI desktops. SizeToContent leaves DIU sizes, so scale them to device px.
+        var (wa, s) = MonitorPlacement.CursorWorkArea();
+        double wPx = ActualWidth * s;
+        double hPx = ActualHeight * s;
+        MonitorPlacement.MovePx(new WindowInteropHelper(this).Handle,
+            wa.Right - wPx - 24 * s, wa.Bottom - hPx - 24 * s);
 
         Opacity = 0;
         BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120)));
