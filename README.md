@@ -141,5 +141,7 @@ ISCC.exe installer.iss                      # -> dist\wsnap-setup-x.y.z.exe (Inn
 
 OCR is powered by [RapidOcrNet](https://github.com/BobLd/RapidOcrNet) and
 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) PP-OCRv5 models on ONNX Runtime.
+Bundled third-party components and their licenses (all permissive / GPL-3.0-compatible) are
+listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
 See `ROADMAP.md` for detailed status and `CHANGELOG.md` for release history.
