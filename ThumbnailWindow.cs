@@ -246,9 +246,30 @@ public sealed class ThumbnailWindow : Window
 
     private static BitmapImage LoadFrozen(string path)
     {
+        // Decode at ~2× the on-screen thumbnail box (~220×158), constrained by whichever
+        // dimension fills the box under Stretch.Uniform — so a tall/narrow capture (e.g. a
+        // scroll shot) is HEIGHT-limited, not width-forced into a giant bitmap. Never upscale
+        // an already-small original. A 4K grab drops from a ~33 MB bitmap to ~0.4 MB; pinned
+        // thumbnails stay resident, so this directly shrinks the idle footprint. Drag-out and
+        // every action use the original file on disk, so quality is unaffected.
+        const int boxW = 440, boxH = 316;
+        int ow = 0, oh = 0;
+        try
+        {
+            var fr = BitmapFrame.Create(new Uri(path), BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+            ow = fr.PixelWidth; oh = fr.PixelHeight;
+        }
+        catch { /* fall back to a full-res decode below */ }
+
         var bi = new BitmapImage();
         bi.BeginInit();
         bi.CacheOption = BitmapCacheOption.OnLoad;
+        if (ow > 0 && oh > 0)
+        {
+            bool widthLimited = (long)ow * boxH >= (long)oh * boxW;   // wider than the box aspect
+            if (widthLimited) { if (ow > boxW) bi.DecodePixelWidth = boxW; }
+            else              { if (oh > boxH) bi.DecodePixelHeight = boxH; }
+        }
         bi.UriSource = new Uri(path);
         bi.EndInit();
         bi.Freeze();

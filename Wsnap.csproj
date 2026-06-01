@@ -11,10 +11,20 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>wsnap.ico</ApplicationIcon>
     <AssemblyName>wsnap</AssemblyName>
-    <Version>1.2.3</Version>
+    <Version>1.2.4</Version>
     <RootNamespace>Wsnap</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks> <!-- scroll-capture row matching uses pointers -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn> <!-- DPI is set via WPF manifest; WinForms hint is moot. -->
+
+    <!-- Size trimming for the self-contained single-file build. A capture tool needs no ICU
+         globalization data (~28 MB of icudt.dll) — all date/number formatting in the app uses
+         explicit invariant format strings + CultureInfo.InvariantCulture, so this is safe.
+         The runtime feature switches drop diagnostics/serialization machinery we never use. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <EventSourceSupport>false</EventSourceSupport>
+    <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
   </PropertyGroup>
 
   <ItemGroup>

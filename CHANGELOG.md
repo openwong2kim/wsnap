@@ -3,6 +3,25 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.2.4] - 2026-06-01
+
+### Changed
+- **Much smaller resident memory footprint.** Sitting idle in the tray, wsnap used to hold
+  ~125 MB working set / ~240 MB committed; it now sits at a single-digit working set and
+  ~85 MB committed (measured on the same machine, idle).
+  - The **working set is returned to the OS** on an idle timer — and once after startup
+    settles, and after a capture's transient bitmaps are freed — so Task Manager reflects
+    what's actually in use rather than everything the process has ever touched.
+  - The **GC runs in memory-conserving mode** and hands freed memory back to the OS instead
+    of retaining the virtual address space (`System.GC.ConserveMemory`, `RetainVM=false`).
+  - **Floating thumbnails decode to ~2× their on-screen size** instead of the capture's full
+    resolution. A 4K grab was a ~33 MB in-memory bitmap; pinned thumbnails stay resident, so
+    this directly shrinks idle memory. Drag-out and all actions still use the original file.
+  - **ICU globalization data (~28 MB) is dropped** (`InvariantGlobalization`) — every date /
+    number format in the app already uses an invariant culture, so output is unchanged.
+
+[1.2.4]: https://github.com/openwong2kim/wsnap/releases/tag/v1.2.4
+
 ## [1.2.3] - 2026-06-01
 
 ### Internal

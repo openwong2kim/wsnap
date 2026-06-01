@@ -28,6 +28,7 @@ public partial class App : System.Windows.Application
     private HotkeyHook? _hook;
     private WinForms.NotifyIcon? _tray;
     private ClipboardWatcher? _clipboard;
+    private DispatcherTimer? _idleTrim;
 
     [STAThread]
     public static void Main()
@@ -76,6 +77,35 @@ public partial class App : System.Windows.Application
             Toast.Show("단축키 훅 설치 실패 — 보안 소프트웨어가 막았을 수 있어요. 트레이 메뉴로 캡처하세요.", 4000);
         else
             CrashLog.Telemetry("startup");
+
+        StartMemoryTrimming();
+    }
+
+    /// <summary>
+    /// Keep the resident (tray) footprint small. Once startup/JIT settles, do one compacting
+    /// trim to release the warm-up allocations, then empty the working set on an idle timer so
+    /// the process sits at tens of MB instead of holding onto everything it ever touched.
+    /// </summary>
+    private void StartMemoryTrimming()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            var warmup = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(4) };
+            warmup.Tick += (_, _) => { warmup.Stop(); MemoryTrim.TrimNow(); };
+            warmup.Start();
+        });
+
+        _idleTrim = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(45) };
+        _idleTrim.Tick += (_, _) => MemoryTrim.TrimWorkingSet();
+        _idleTrim.Start();
+    }
+
+    /// <summary>After a capture's transient bitmaps are gone, reclaim + return the memory.</summary>
+    private void ScheduleTrim()
+    {
+        var t = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1.5) };
+        t.Tick += (_, _) => { t.Stop(); MemoryTrim.TrimNow(); };
+        t.Start();
     }
 
     private void SetupTray()
@@ -199,12 +229,17 @@ public partial class App : System.Windows.Application
 
                 case CaptureOverlay.PostAction.Gif:
                     if (region is { } r && r.Width > 1 && r.Height > 1)
-                        new GifRecorder(r, p => new ThumbnailWindow(p).Show()).Start();
+                        new GifRecorder(r, p => { new ThumbnailWindow(p).Show(); ScheduleTrim(); }).Start();
                     break;
             }
         }
         catch (Exception ex) { CrashLog.Write("route-capture", ex); }
         finally { if (disposeBmp) bmp?.Dispose(); }
+        // The primary region-capture path lands here; the overlay's large frozen-screen
+        // bitmap and result bitmap are released above, so reclaim the memory now. OCR keeps
+        // its bitmap (trims in RunOcr's finally) and GIF is mid-recording — its blocking
+        // compacting trim would drop frames — so it trims from its completion callback.
+        if (act != CaptureOverlay.PostAction.Ocr && act != CaptureOverlay.PostAction.Gif) ScheduleTrim();
     }
 
     private void OpenEditorThenThumbnail(string path)
@@ -226,7 +261,7 @@ public partial class App : System.Windows.Application
             else { ImageClipboard.CopyText(text); Toast.Show("텍스트 복사됨 ✓"); }
         }
         catch (Exception ex) { CrashLog.Write("ocr", ex); Toast.Show("OCR 실패"); }
-        finally { bmp.Dispose(); }
+        finally { bmp.Dispose(); MemoryTrim.TrimNow(); }   // OCR's bitmap is gone now
     }
 
     private void StartOcrCapture()
@@ -263,7 +298,7 @@ public partial class App : System.Windows.Application
         {
             _overlayOpen = false;
             if (overlay.RegionPx is { } r && r.Width > 1 && r.Height > 1)
-                new GifRecorder(r, path => new ThumbnailWindow(path).Show()).Start();
+                new GifRecorder(r, path => { new ThumbnailWindow(path).Show(); ScheduleTrim(); }).Start();
         };
         overlay.Show();
         overlay.Activate();
@@ -298,6 +333,7 @@ public partial class App : System.Windows.Application
                 path = CaptureStore.SaveBitmap(bmp, ctx);
             if (Settings.Current.AutoCopyOnCapture) ImageClipboard.CopyImageFile(path);
             new ThumbnailWindow(path).Show();
+            ScheduleTrim();   // reclaim the full-screen grab bitmap once it's saved & shown
         }
         catch (Exception ex) { CrashLog.Write("deliver-region", ex); Toast.Show("캡처 실패"); }
     }
