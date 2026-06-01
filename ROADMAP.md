@@ -31,7 +31,7 @@
 
 ## v0.5 — OCR & 텍스트 ✅
 - ✅ 썸네일 "텍스트" 버튼 + 트레이 "텍스트 추출" (PaddleOCR PP-OCRv5·ONNX, 온디바이스·무료, 한·영) — `Ocr.cs`
-- ✅ 한국어/영어 인식 (설치된 언어팩 기반)
+- ✅ 한국어/영어 인식 (v1.3.0부터 PP-OCRv5 모델 동봉 — 언어팩 불필요)
 - ✅ 영역 선택 직후 텍스트만 추출 모드 (CaptureMode.OcrText)
 
 ## v1.0 — 공개 릴리스
@@ -39,9 +39,9 @@
 - ✅ 충돌/예외 처리 (전역 핸들러 + 로컬 로그) — `CrashLog.cs`
 - ✅ 텔레메트리(옵트인, 로컬 전용) — `CrashLog.Telemetry`
 - ✅ 문서(README), 랜딩 페이지(`site/index.html`), GPL-3.0 라이선스(`LICENSE` + `NOTICE`) — v1.2.1에서 Apache-2.0 → GPL-3.0 전환
-- 🟡 다중 모니터·고DPI: 코드 대응 완료(PerMonitorV2), 실제 회귀 테스트는 기기 필요
-- ⚙️ 코드 서명 인증서 (SmartScreen 회피) — 인증서 구매·서명 필요
-- ⚙️ GitHub 공개 / winget 등록 — 저장소 생성·게시 필요
+- 🟡 다중 모니터·고DPI: PerMonitorV2 대응 + v1.2.2에서 위젯 배치 재수정(`MonitorPlacement.cs`); 실멀티모니터 회귀는 기기 확인 권장
+- ✅ 코드 서명 파이프라인 연결(SignPath, 설정 전까지 dormant) — v1.2.3 (활성화는 사람 몫, 아래 참고)
+- ✅ GitHub 공개 + 릴리스(v1.3.1까지) + scoop/winget 매니페스트 — winget-pkgs PR만 사람 몫
 
 ## v1.1+ — 확장
 - ✅ GIF 녹화 (영역, 즉시 인코딩·무한루프) — `GifRecorder.cs`, `GifWriter.cs`
@@ -73,11 +73,20 @@
 ### 보류 (검증 불가 → 향후)
 - 🔲 **진짜 MP4/H.264 녹화(+오디오)** — Media Foundation SinkWriter 인터롭으로 프로토타입(옵트인·코덱 프로브·GIF 폴백 설계)했으나, 본 빌드 환경에서 MF 싱크라이터가 `IMFSinkWriter`에 대해 `E_NOINTERFACE`(기능하는 H.264 싱크 부재)를 반환해 **검증 불가** → 실제 하드웨어 검증 전까지 보류. GIF 녹화가 영상 경로 유지.
 
+## v1.2.1–v1.2.4 — 라이선스·안정성·성능 ✅
+- ✅ **GPL-3.0 전환** (Apache-2.0 → GPL-3.0-only; LICENSE/NOTICE/소스 헤더 일괄) — v1.2.1
+- ✅ **모자이크/흐림 가림 버그 수정** (GDI+ 엣지 알파 드롭 → `WrapMode.TileFlipXY` 클램프, OCR로 검증) + OCR 소형 텍스트 자동 업스케일 — v1.2.1
+- ✅ **멀티모니터 위젯 배치 수정** (커서가 있는 모니터 기준 물리픽셀 배치, `SetWindowPos`) — v1.2.2 `MonitorPlacement.cs`
+- ✅ **SignPath 코드 서명 파이프라인** (무료 OSS 인증서, 변수 설정 전까지 dormant·릴리스는 미서명 유지) — v1.2.3 `SIGNING.md`
+- ✅ **상주 메모리 대폭 절감** (idle ~240MB committed → ~85MB, working set 한 자릿수: 워킹셋 OS 반환·GC ConserveMemory·썸네일 축소 디코드·ICU(InvariantGlobalization) 제거) — v1.2.4 `MemoryTrim.cs`
+
+## v1.3 — OCR 엔진 교체 & 라이선스 고지 ✅
+- ✅ **OCR 엔진을 PaddleOCR PP-OCRv5(ONNX·RapidOcrNet)로 교체** — 내장 `Windows.Media.Ocr`이 한·영 혼합을 깨뜨리던 문제 해결(`프로토콜`→`하오토콜` 등). 한글 rec 모델을 exe에 동봉(언어팩 불필요), lazy 로드 + idle 해제로 v1.2.4 상주 메모리 보존, 헤드리스 `.smoke/ocr`로 정확도 검증 — v1.3.0 `Ocr.cs`
+- ✅ **제3자 라이선스 고지 동봉** (`THIRD-PARTY-NOTICES.md` — 번들 의존성 전부 permissive·GPL-3.0 호환; 인스톨러 + 포터블 zip에 포함) — v1.3.1
+
 ---
 
 ## 남은 사람 몫 (코드 외)
-1. **코드 서명**: Authenticode 인증서로 `wsnap.exe`/`setup.exe` 서명 → SmartScreen 경고 제거.
-2. **GitHub 공개**: `git init` 후 원격 생성·푸시 (현재 git 저장소 아님), 릴리스에 exe 첨부.
-3. **winget**: 매니페스트 작성 후 microsoft/winget-pkgs PR.
-4. **Imgur 키**: 본인 Client-ID를 설정 창에 입력해야 업로드 활성화.
-5. ~~**OCR 언어팩**~~: 더 이상 불필요 — PP-OCRv5 한글 모델이 exe에 동봉됨(v1.3.0).
+1. **코드 서명 활성화**: SignPath Foundation(무료 OSS 프로그램) 신청 후 `release.yml`의 서명 단계를 활성화 → SmartScreen "알 수 없는 게시자" 경고 제거. 절차는 `SIGNING.md` 참고. (Authenticode 인증서 구매 불필요)
+2. **winget 등록**: `packaging/winget/` 매니페스트로 microsoft/winget-pkgs에 PR. (Scoop은 매니페스트로 즉시 설치 가능, 이미 동작)
+3. **Imgur 키**: 본인 Client-ID를 설정 창에 입력해야 업로드 활성화.
