@@ -3,6 +3,15 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.2.3] - 2026-06-01
+
+### Internal
+- Wired **SignPath code signing** into the release pipeline (`release.yml`), kept dormant
+  until the signing variables are configured, and added `SIGNING.md`. No user-facing
+  behavior change from 1.2.2 — releases remain unsigned until SignPath is enabled.
+
+[1.2.3]: https://github.com/openwong2kim/wsnap/releases/tag/v1.2.3
+
 ## [1.2.2] - 2026-06-01
 
 ### Fixed
