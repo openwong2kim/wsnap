@@ -13,6 +13,8 @@ publish/
 
 # Logs / local
 *.log
+.publishlog.txt
+publish-opt/
 .mp4check/
 .ocrcheck/
 .mosaiccheck/

@@ -30,7 +30,7 @@
 - ✅ 키보드 중심 (A/R/P/T/M/C, Ctrl+Z 실행취소, Enter 저장, Esc 취소)
 
 ## v0.5 — OCR & 텍스트 ✅
-- ✅ 썸네일 "텍스트" 버튼 + 트레이 "텍스트 추출" (Windows.Media.Ocr, 온디바이스·무료) — `Ocr.cs`
+- ✅ 썸네일 "텍스트" 버튼 + 트레이 "텍스트 추출" (PaddleOCR PP-OCRv5·ONNX, 온디바이스·무료, 한·영) — `Ocr.cs`
 - ✅ 한국어/영어 인식 (설치된 언어팩 기반)
 - ✅ 영역 선택 직후 텍스트만 추출 모드 (CaptureMode.OcrText)
 
@@ -80,4 +80,4 @@
 2. **GitHub 공개**: `git init` 후 원격 생성·푸시 (현재 git 저장소 아님), 릴리스에 exe 첨부.
 3. **winget**: 매니페스트 작성 후 microsoft/winget-pkgs PR.
 4. **Imgur 키**: 본인 Client-ID를 설정 창에 입력해야 업로드 활성화.
-5. **OCR 언어팩**: 설정 > 시간 및 언어 > 언어에서 한국어 OCR 기능 설치돼 있어야 한/영 인식.
+5. ~~**OCR 언어팩**~~: 더 이상 불필요 — PP-OCRv5 한글 모델이 exe에 동봉됨(v1.3.0).

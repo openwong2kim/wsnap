@@ -3,6 +3,23 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.3.0] - 2026-06-01
+
+### Changed
+- **Far better OCR.** The text-recognition engine moved off the built-in Windows OCR
+  (`Windows.Media.Ocr`), which mangled mixed Korean/English — confusing `O`↔`0`, `l`↔`I`,
+  dropping or garbling Hangul (e.g. `프로토콜` → `하오토콜`). wsnap now runs **PaddleOCR
+  PP-OCRv5 models on ONNX Runtime** (via RapidOcrNet) with a dedicated Korean recognition
+  model that also covers English, digits, and symbols. Still **fully offline and free** — no
+  network, no tracking. In testing, the exact strings the old engine garbled
+  (`프로토콜`, `Codex`, `Electron`, `최적화`) now come back correct.
+  - No language pack required anymore — the models ship inside the exe.
+  - The engine is **loaded lazily on first use and released after a short idle**, so the
+    resident tray footprint from 1.2.4 is preserved when you're not actively running OCR.
+  - The download grew (bundled ONNX runtime + models); this does not affect idle memory.
+
+[1.3.0]: https://github.com/openwong2kim/wsnap/releases/tag/v1.3.0
+
 ## [1.2.4] - 2026-06-01
 
 ### Changed
