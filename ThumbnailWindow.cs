@@ -20,6 +20,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
@@ -44,6 +45,15 @@ public sealed class ThumbnailWindow : Window
     private const double FlingThreshold = 40;
 
     private static readonly List<ThumbnailWindow> Stack = new();
+
+    // Target monitor for the stack, in PHYSICAL device pixels. Captured at the moment
+    // a capture lands (cursor's monitor) so the thumbnail appears on the screen you're
+    // working on — and so SetWindowPos can place it precisely regardless of per-monitor DPI.
+    private static System.Drawing.Rectangle _targetWorkPx;
+    private static double _targetScale = 1.0;
+    private static bool _targetSet;
+
+    private IntPtr _hwnd;
 
     private string _filePath;
     private readonly Image _img;
@@ -129,11 +139,16 @@ public sealed class ThumbnailWindow : Window
         _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Math.Max(1, Settings.Current.AutoDismissSeconds)) };
         _dismiss.Tick += (_, _) => { _dismiss.Stop(); DismissSlide(); };
 
+        // Pin the stack to the monitor under the cursor (where the capture just happened),
+        // in physical pixels. Re-evaluated per capture; existing thumbnails migrate with it.
+        UpdateTargetMonitor();
+
         Stack.Add(this);
         int max = Math.Max(1, Settings.Current.MaxVisible);
         while (Stack.Count > max) Stack[0].DismissNow();
 
-        Reflow();
+        // Actual placement happens in OnSourceInitialized once this window owns an HWND;
+        // existing thumbnails reflow there too, lifting them to make room for this one.
         // entrance pop
         Loaded += (_, _) => PlayPop();
         StartDismissIfEnabled();
@@ -240,18 +255,50 @@ public sealed class ThumbnailWindow : Window
         return bi;
     }
 
+    /// <summary>
+    /// Re-stacks every live thumbnail at the bottom-right of the TARGET monitor, working
+    /// entirely in physical device pixels via SetWindowPos. This sidesteps WPF's logical
+    /// (DIU) coordinate system, which is anchored to the PRIMARY monitor's DPI and silently
+    /// misplaces windows on a multi-monitor / mixed-DPI desktop — the exact cause of the
+    /// thumbnail clashing with the taskbar once a second monitor is attached.
+    /// </summary>
     private static void Reflow()
     {
-        var wa = SystemParameters.WorkArea;
-        double y = wa.Bottom - EdgeMargin;
+        if (!_targetSet) UpdateTargetMonitor();
+        var wa = _targetWorkPx;
+        double s = _targetScale;
+        double margin = EdgeMargin * s;
+        double gap = Gap * s;
+
+        double y = wa.Bottom - margin;           // physical px, bottom edge of work area
         for (int i = Stack.Count - 1; i >= 0; i--)
         {
             var w = Stack[i];
             if (w._closing) continue;
-            w.Left = wa.Right - w.Width - EdgeMargin;
-            w.Top = y - w.Height;
-            y -= w.Height + Gap;
+            double wPx = w.Width * s;
+            double hPx = w.Height * s;
+            double xPx = wa.Right - wPx - margin;
+            w.PlacePx(xPx, y - hPx, wPx, hPx);
+            y -= hPx + gap;
         }
+    }
+
+    /// <summary>Resolve the monitor under the cursor; cache its work area + DPI in physical px.</summary>
+    private static void UpdateTargetMonitor()
+    {
+        (_targetWorkPx, _targetScale) = MonitorPlacement.CursorWorkArea();
+        _targetSet = true;
+    }
+
+    /// <summary>Position+size this window in physical device pixels (no-op until it owns an HWND).</summary>
+    private void PlacePx(double xPx, double yPx, double wPx, double hPx)
+        => MonitorPlacement.SetBoundsPx(_hwnd, xPx, yPx, wPx, hPx);
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        _hwnd = new WindowInteropHelper(this).Handle;
+        Reflow();
     }
 
     /// <summary>Tray-menu "전체 지우기".</summary>
@@ -445,11 +492,19 @@ public sealed class ThumbnailWindow : Window
         if (_closing) return;
         _closing = true;
         _dismiss.Stop();
-        Reflow();
-        var anim = new DoubleAnimation(Left, SystemParameters.WorkArea.Right + Width, TimeSpan.FromMilliseconds(190))
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
-        anim.Completed += (_, _) => Close();
-        BeginAnimation(LeftProperty, anim);
+        Reflow();   // lift the survivors immediately
+
+        // Slide off to the right + fade. Uses an inner RenderTransform (window-local DIU)
+        // rather than animating Window.Left — the window is positioned in physical pixels
+        // via SetWindowPos, so a logical-coordinate Left animation would jump.
+        var tt = new TranslateTransform();
+        _root.RenderTransform = tt;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+        tt.BeginAnimation(TranslateTransform.XProperty,
+            new DoubleAnimation(0, Width, TimeSpan.FromMilliseconds(190)) { EasingFunction = ease });
+        var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(185)) { EasingFunction = ease };
+        fade.Completed += (_, _) => Close();
+        BeginAnimation(OpacityProperty, fade);
     }
 
     protected override void OnClosed(EventArgs e)
