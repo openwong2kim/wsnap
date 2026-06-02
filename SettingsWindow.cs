@@ -43,6 +43,10 @@ public sealed class SettingsWindow : Window
     private string _lang;
     private readonly List<ToggleButton> _langButtons = new();
 
+    // working copy of the OCR language
+    private string _ocrLang;
+    private Button? _ocrLangBtn;
+
     private readonly TextBox _folderBox;
     private readonly TextBox _template;
     private readonly TextBlock _hotkeyLabel;
@@ -66,6 +70,7 @@ public sealed class SettingsWindow : Window
         var s = Settings.Current;
         _vk = s.HotkeyVk; _shift = s.HotkeyShift; _ctrl = s.HotkeyCtrl; _alt = s.HotkeyAlt; _win = s.HotkeyWin;
         _lang = L.Normalize(s.Language);
+        _ocrLang = Ocr.Resolve(s.OcrLanguage).Code;
 
         Title = L.T("set.title");
         Width = 500; SizeToContent = SizeToContent.Height;
@@ -86,6 +91,11 @@ public sealed class SettingsWindow : Window
         root.Children.Add(Card(L.T("set.cardLanguage"),
             Row(L.T("set.language"), LanguageSegment(), null),
             Hint(L.T("set.languageHint"))));
+
+        // --- OCR language (separate from the UI language above) ---
+        root.Children.Add(Card(L.T("set.cardOcr"),
+            Row(L.T("set.ocrLanguage"), OcrLanguageField(), null),
+            Hint(L.T("set.ocrLanguageHint"))));
 
         // --- storage ---
         _folderBox = Field(s.SaveFolder, readOnly: true);
@@ -213,6 +223,7 @@ public sealed class SettingsWindow : Window
 
         s.Language = _lang;
         L.Lang = _lang;          // applies immediately to any window opened after this
+        s.OcrLanguage = _ocrLang; // next OCR rebuilds the engine for this language
 
         s.Save();
         _onApplied();
@@ -242,6 +253,42 @@ public sealed class SettingsWindow : Window
             panel.Children.Add(tb);
         }
         return panel;
+    }
+
+    /// <summary>OCR-language picker: a button showing the current pack, opening a menu of all packs
+    /// (non-embedded ones annotated with their download size).</summary>
+    private FrameworkElement OcrLanguageField()
+    {
+        _ocrLangBtn = new Button
+        {
+            Style = Theme.Style("GhostButton"),
+            Content = Ocr.Resolve(_ocrLang).Native,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            MinWidth = 200
+        };
+
+        var menu = new ContextMenu();
+        foreach (var l in Ocr.Languages)
+        {
+            string code = l.Code;
+            var item = new MenuItem
+            {
+                Header = l.Embedded ? l.Native : $"{l.Native}  (~{l.SizeMb:0.#} MB)"
+            };
+            item.Click += (_, _) =>
+            {
+                _ocrLang = code;
+                _ocrLangBtn!.Content = Ocr.Resolve(code).Native;
+            };
+            menu.Items.Add(item);
+        }
+
+        _ocrLangBtn.Click += (_, _) =>
+        {
+            menu.PlacementTarget = _ocrLangBtn;
+            menu.IsOpen = true;
+        };
+        return _ocrLangBtn;
     }
 
     // ---- themed UI helpers ----

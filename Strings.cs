@@ -103,6 +103,8 @@ public static class L
         ["toast.windowReadFail"]= "Couldn't read the window bounds",
         ["toast.noLastRegion"]  = "No region captured yet — select a region first",
         ["toast.countdown"]     = "Capturing in {0}s…",
+        ["toast.ocrDownloading"]= "Downloading {0} OCR model… ({1})",
+        ["toast.ocrDownloadFail"]= "Failed to download the {0} OCR model",
 
         // ---- settings window (SettingsWindow.cs) ----
         ["set.title"]           = "wsnap Settings",
@@ -136,6 +138,9 @@ public static class L
         ["set.cardLanguage"]    = "Language",
         ["set.language"]        = "Display language",
         ["set.languageHint"]    = "Some already-open windows update after a restart.",
+        ["set.cardOcr"]         = "OCR",
+        ["set.ocrLanguage"]     = "Text recognition language",
+        ["set.ocrLanguageHint"] = "Language used for text extraction (OCR), independent of the display language above. Korean (incl. English) ships built in; other packs download on first use (~8–85 MB).",
         ["set.cancel"]          = "Cancel",
         ["set.save"]            = "Save",
 
@@ -288,6 +293,8 @@ public static class L
         ["toast.windowReadFail"]= "창 영역을 읽지 못했어요",
         ["toast.noLastRegion"]  = "아직 캡처한 영역이 없어요 — 먼저 영역을 잡아주세요",
         ["toast.countdown"]     = "{0}초 후 캡처…",
+        ["toast.ocrDownloading"]= "{0} OCR 모델 다운로드 중… ({1})",
+        ["toast.ocrDownloadFail"]= "{0} OCR 모델 다운로드 실패",
 
         // ---- settings window ----
         ["set.title"]           = "wsnap 설정",
@@ -321,6 +328,9 @@ public static class L
         ["set.cardLanguage"]    = "언어",
         ["set.language"]        = "표시 언어",
         ["set.languageHint"]    = "이미 열려 있는 일부 창은 재시작 후 적용됩니다.",
+        ["set.cardOcr"]         = "OCR",
+        ["set.ocrLanguage"]     = "텍스트 인식 언어",
+        ["set.ocrLanguageHint"] = "텍스트 추출(OCR)에 사용할 언어로, 위의 표시 언어와는 별개입니다. 한국어(영어 포함)는 기본 내장이며, 다른 언어팩은 첫 사용 시 다운로드됩니다 (~8~85 MB).",
         ["set.cancel"]          = "취소",
         ["set.save"]            = "저장",
 
