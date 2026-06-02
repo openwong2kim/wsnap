@@ -1,5 +1,7 @@
 # Generates wsnap.ico (multi-resolution) + site/icon.png from code — no binary assets in git.
-# A blue rounded "app tile" with white viewfinder corner-marks = capture/snip identity.
+# A black rounded tile with a white "W" = wsnap mark. The W is drawn as a vector polyline
+# (not a font glyph) so it stays crisp at 16px. A faint border keeps the dark tile visible
+# on a dark taskbar.
 #   pwsh -File tools/make-icon.ps1 -Out <path-to-wsnap.ico>
 param([string]$Out = (Join-Path (Split-Path $PSScriptRoot -Parent) 'wsnap.ico'))
 
@@ -15,10 +17,10 @@ function New-IconBitmap([int]$S) {
   $g.PixelOffsetMode   = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
   $g.Clear([System.Drawing.Color]::Transparent)
 
-  # rounded blue tile
+  # rounded black tile
   $m = [double]$S * 0.07
   $w = $S - 2*$m
-  $rad = [double]$S * 0.23
+  $rad = [double]$S * 0.22
   $d = $rad * 2
   $path = New-Object System.Drawing.Drawing2D.GraphicsPath
   $path.AddArc($m,        $m,        $d, $d, 180, 90)
@@ -26,35 +28,30 @@ function New-IconBitmap([int]$S) {
   $path.AddArc($m+$w-$d,  $m+$w-$d,  $d, $d,   0, 90)
   $path.AddArc($m,        $m+$w-$d,  $d, $d,  90, 90)
   $path.CloseFigure()
-  $rectF = New-Object System.Drawing.RectangleF([single]$m, [single]$m, [single]$w, [single]$w)
-  $c1 = [System.Drawing.Color]::FromArgb(255, 0x3B, 0x82, 0xF6)
-  $c2 = [System.Drawing.Color]::FromArgb(255, 0x25, 0x63, 0xEB)
-  $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rectF, $c1, $c2, 50.0)
-  $g.FillPath($brush, $path)
+  $fill = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 0x11, 0x13, 0x17))
+  $g.FillPath($fill, $path)
+  # faint border so the dark tile stays visible on a dark taskbar
+  $bpen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(255, 0x33, 0x37, 0x3D), [single]([Math]::Max(1.0, $S * 0.035)))
+  $g.DrawPath($bpen, $path)
 
-  # white viewfinder corner brackets
-  $fm = [double]$S * 0.30
-  $L  = [double]$S * 0.15
-  $t  = [Math]::Max(2.0, $S * 0.066)
-  $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, [single]$t)
-  $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-  $pen.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
-  $lo = $fm; $hi = $S - $fm
-  $g.DrawLine($pen, [single]$lo, [single]$lo, [single]($lo+$L), [single]$lo)
-  $g.DrawLine($pen, [single]$lo, [single]$lo, [single]$lo, [single]($lo+$L))
-  $g.DrawLine($pen, [single]($hi-$L), [single]$lo, [single]$hi, [single]$lo)
-  $g.DrawLine($pen, [single]$hi, [single]$lo, [single]$hi, [single]($lo+$L))
-  $g.DrawLine($pen, [single]$lo, [single]($hi-$L), [single]$lo, [single]$hi)
-  $g.DrawLine($pen, [single]$lo, [single]$hi, [single]($lo+$L), [single]$hi)
-  $g.DrawLine($pen, [single]($hi-$L), [single]$hi, [single]$hi, [single]$hi)
-  $g.DrawLine($pen, [single]$hi, [single]($hi-$L), [single]$hi, [single]$hi)
+  # white "W" as a vector polyline (crisp at small sizes): two V's
+  $lx = [double]$S * 0.26; $rx = [double]$S * 0.74
+  $ty = [double]$S * 0.34; $by = [double]$S * 0.66; $mid = [double]$S * 0.50
+  $span = $rx - $lx
+  $pts = @(
+    (New-Object System.Drawing.PointF([single]$lx,                  [single]$ty)),
+    (New-Object System.Drawing.PointF([single]($lx + $span * 0.25), [single]$by)),
+    (New-Object System.Drawing.PointF([single]($S * 0.5),           [single]$mid)),
+    (New-Object System.Drawing.PointF([single]($rx - $span * 0.25), [single]$by)),
+    (New-Object System.Drawing.PointF([single]$rx,                  [single]$ty))
+  )
+  $wpen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, [single]([Math]::Max(1.6, $S * 0.11)))
+  $wpen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+  $wpen.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
+  $wpen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+  $g.DrawLines($wpen, [System.Drawing.PointF[]]$pts)
 
-  # center focus dot
-  $dot = [double]$S * 0.05
-  $cx = $S / 2.0
-  $g.FillEllipse([System.Drawing.Brushes]::White, [single]($cx-$dot), [single]($cx-$dot), [single]($dot*2), [single]($dot*2))
-
-  $pen.Dispose(); $brush.Dispose(); $path.Dispose(); $g.Dispose()
+  $wpen.Dispose(); $bpen.Dispose(); $fill.Dispose(); $path.Dispose(); $g.Dispose()
   return $bmp
 }
 

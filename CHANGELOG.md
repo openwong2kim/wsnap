@@ -3,6 +3,25 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.3.3] - 2026-06-02
+
+### Fixed
+- **Region selection is smooth now.** The remaining drag stutter (after the 1.3.2 input
+  coalescing) was the overlay being a full-virtual-desktop *layered* window
+  (`AllowsTransparency=true`): Windows re-pushed the entire window surface on the CPU every
+  frame. Since the overlay already shows a frozen snapshot of the desktop, it's now an
+  **opaque** window — rendered on the GPU-composited path with only dirty regions repainted —
+  so the selection drag stays fluid even on large / multi-monitor / high-refresh setups. (We
+  fall back to the transparent window only in the rare case the desktop freeze fails.)
+  Verified: idle memory unchanged (single-digit working set / ~86 MB committed).
+
+### Changed
+- **New tray icon.** A black rounded tile with a white **W**, replacing the blue
+  viewfinder tile. Drawn as a vector so it stays crisp down to 16px, with a faint border so
+  it reads on a dark taskbar.
+
+[1.3.3]: https://github.com/openwong2kim/wsnap/releases/tag/v1.3.3
+
 ## [1.3.2] - 2026-06-02
 
 ### Fixed
