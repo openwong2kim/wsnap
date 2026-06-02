@@ -61,7 +61,7 @@ public sealed class GifRecorder
         {
             using var bmp = ScreenGrab.Grab(_region.X, _region.Y, _region.Width, _region.Height);
             _frames.Add(ScreenGrab.ToBitmapSource(bmp));
-            if (_status != null) _status.Text = $"● 녹화 중 · {_frames.Count} 프레임 · 중지(클릭/Esc)";
+            if (_status != null) _status.Text = L.T("gif.recording", _frames.Count);
             if (_frames.Count >= Fps * MaxSeconds) Stop();
         }
         catch (Exception ex) { CrashLog.Write("gif-tick", ex); Stop(); }
@@ -74,9 +74,9 @@ public sealed class GifRecorder
         _timer.Stop();
         _control?.Close();
 
-        if (_frames.Count == 0) { Toast.Show("녹화 취소됨"); return; }
+        if (_frames.Count == 0) { Toast.Show(L.T("gif.canceled")); return; }
 
-        Toast.Show("GIF 인코딩 중…");
+        Toast.Show(L.T("gif.encoding"));
         string path = CaptureStore.NewPath(".gif");
         try
         {
@@ -87,7 +87,7 @@ public sealed class GifRecorder
         catch (Exception ex)
         {
             CrashLog.Write("gif-save", ex);
-            Toast.Show("GIF 저장 실패");
+            Toast.Show(L.T("gif.saveFail"));
         }
         _frames.Clear();
     }
@@ -96,7 +96,7 @@ public sealed class GifRecorder
     {
         _status = new TextBlock
         {
-            Text = "● 녹화 중 · 0 프레임 · 중지(클릭/Esc)",
+            Text = L.T("gif.recording0"),
             Foreground = System.Windows.Media.Brushes.White,
             FontSize = 13, Margin = new Thickness(12, 8, 12, 8)
         };

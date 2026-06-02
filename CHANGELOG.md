@@ -3,6 +3,19 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.4.0] - 2026-06-02
+
+### Added
+- **Display language is now switchable, and defaults to English.** wsnap was Korean-only;
+  all user-facing text (tray menu, settings, editor, history, thumbnails, capture overlay,
+  toasts) now goes through a small string table (`Strings.cs`) with English and Korean
+  tables. The new **Language** card at the top of Settings lets you pick the UI language;
+  English is the default. Changing it rebuilds the tray menu immediately and re-localizes
+  every window the next time it's opened. Existing installs (whose `settings.json` predates
+  the field) start in English. Adding a language later is a table plus one list entry.
+
+[1.4.0]: https://github.com/openwong2kim/wsnap/releases/tag/v1.4.0
+
 ## [1.3.3] - 2026-06-02
 
 ### Fixed

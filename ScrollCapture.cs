@@ -100,7 +100,7 @@ public sealed class ScrollCapture
 
     private void Finish(int totalH)
     {
-        if (_strips.Count == 0) { Toast.Show("스크롤 캡처 취소됨"); return; }
+        if (_strips.Count == 0) { Toast.Show(L.T("scroll.canceled")); return; }
         try
         {
             using var tall = new Bitmap(_r.Width, Math.Max(1, totalH), System.Drawing.Imaging.PixelFormat.Format32bppArgb);
@@ -113,7 +113,7 @@ public sealed class ScrollCapture
             CrashLog.Telemetry("scroll-saved");
             _onSaved(path);
         }
-        catch (Exception ex) { CrashLog.Write("scroll-stitch", ex); Toast.Show("스크롤 캡처 저장 실패"); }
+        catch (Exception ex) { CrashLog.Write("scroll-stitch", ex); Toast.Show(L.T("scroll.saveFail")); }
         finally { foreach (var s in _strips) s.Dispose(); _strips.Clear(); }
     }
 
@@ -168,7 +168,7 @@ public sealed class ScrollCapture
     {
         var status = new TextBlock
         {
-            Text = "스크롤 캡처 중… 중지(클릭/Esc)",
+            Text = L.T("scroll.recording"),
             Foreground = System.Windows.Media.Brushes.White, FontSize = 13,
             Margin = new Thickness(12, 8, 12, 8)
         };

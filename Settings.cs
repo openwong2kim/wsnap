@@ -24,6 +24,10 @@ namespace Wsnap;
 /// </summary>
 public sealed class Settings
 {
+    // ---- Localization ----
+    /// <summary>UI language code ("en", "ko", …). Default English. See <see cref="L"/>.</summary>
+    public string Language { get; set; } = "en";
+
     // ---- Capture / storage ----
     public string SaveFolder { get; set; } = DefaultSaveFolder();
     public bool KeepHistory { get; set; } = false;          // permanent date-foldered archive
@@ -127,6 +131,10 @@ public sealed class Settings
             }
         }
         catch { /* corrupt file -> fall back to defaults */ }
+
+        // Apply the saved (or default English) UI language, normalized to a supported one.
+        Current.Language = L.Normalize(Current.Language);
+        L.Lang = Current.Language;
 
         // Make sure the target folder exists regardless.
         try { Directory.CreateDirectory(Current.SaveFolder); } catch { }

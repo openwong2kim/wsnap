@@ -94,7 +94,7 @@ public sealed class ThumbnailWindow : Window
                 Background = Theme.Stroke(Color.FromArgb(0xF0, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B)),
                 Child = new TextBlock
                 {
-                    Text = "수정됨",
+                    Text = L.T("thumb.edited"),
                     Foreground = System.Windows.Media.Brushes.White,
                     FontSize = 10.5, FontWeight = FontWeights.SemiBold, FontFamily = Theme.Font
                 }
@@ -165,16 +165,16 @@ public sealed class ThumbnailWindow : Window
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        bar.Children.Add(IconBtn("copy", "이미지 복사 (Ctrl+클릭=경로)", CopyImage));
-        bar.Children.Add(IconBtn("save", "다른 이름으로 저장", SaveAs));
-        bar.Children.Add(IconBtn("edit", "편집", EditCurrent));
-        bar.Children.Add(IconBtn("text", "텍스트 추출 (OCR)", OcrCurrent));
-        bar.Children.Add(IconBtn("folder", "폴더에서 보기", Reveal));
+        bar.Children.Add(IconBtn("copy", L.T("thumb.copy"), CopyImage));
+        bar.Children.Add(IconBtn("save", L.T("thumb.saveAs"), SaveAs));
+        bar.Children.Add(IconBtn("edit", L.T("thumb.edit"), EditCurrent));
+        bar.Children.Add(IconBtn("text", L.T("thumb.ocr"), OcrCurrent));
+        bar.Children.Add(IconBtn("folder", L.T("thumb.reveal"), Reveal));
         if (Uploader.Available)
-            bar.Children.Add(IconBtn("share", "업로드 후 링크 복사", ShareCurrent));
+            bar.Children.Add(IconBtn("share", L.T("thumb.share"), ShareCurrent));
         _pinBtn = PinToggle();
         bar.Children.Add(_pinBtn);
-        bar.Children.Add(IconBtn("close", "닫기", () => DismissSlide(), danger: true));
+        bar.Children.Add(IconBtn("close", L.T("thumb.close"), () => DismissSlide(), danger: true));
 
         return new Border
         {
@@ -216,7 +216,7 @@ public sealed class ThumbnailWindow : Window
             Padding = new Thickness(0),
             Margin = new Thickness(1, 0, 1, 0),
             Content = Icons.Make("pin", 15, Theme.Brush("Muted")),
-            ToolTip = "고정 (자동 사라짐 끄기)"
+            ToolTip = L.T("thumb.pin")
         };
         t.Checked += (_, e) => { e.Handled = true; SetPinned(true); };
         t.Unchecked += (_, e) => { e.Handled = true; SetPinned(false); };
@@ -353,7 +353,7 @@ public sealed class ThumbnailWindow : Window
                 _filePath = moved;
             _root.BorderBrush = Theme.Brush("Accent");
             _pinBtn.Content = Icons.Make("pin", 15, System.Windows.Media.Brushes.White);
-            Toast.Show("고정됨 — 자동으로 사라지지 않아요");
+            Toast.Show(L.T("thumb.pinned"));
         }
         else
         {
@@ -401,7 +401,7 @@ public sealed class ThumbnailWindow : Window
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
         {
             ImageClipboard.CopyText(_filePath);
-            Toast.Show("경로 복사됨");
+            Toast.Show(L.T("thumb.pathCopied"));
         }
         else CopyImage();
     }
@@ -410,8 +410,8 @@ public sealed class ThumbnailWindow : Window
 
     private void CopyImage()
     {
-        if (ImageClipboard.CopyImageFile(_filePath)) Toast.Show("이미지 복사됨 ✓");
-        else Toast.Show("복사 실패 — 클립보드를 사용하는 다른 앱이 있을 수 있어요");
+        if (ImageClipboard.CopyImageFile(_filePath)) Toast.Show(L.T("toast.imageCopied"));
+        else Toast.Show(L.T("thumb.copyFail"));
     }
 
     private void SaveAs()
@@ -421,17 +421,17 @@ public sealed class ThumbnailWindow : Window
         {
             var dlg = new Microsoft.Win32.SaveFileDialog
             {
-                Filter = "PNG 이미지 (*.png)|*.png|모든 파일 (*.*)|*.*",
+                Filter = L.T("thumb.pngFilter"),
                 FileName = Path.GetFileName(_filePath),
-                Title = "캡처 저장"
+                Title = L.T("thumb.saveTitle")
             };
             if (dlg.ShowDialog() == true)
             {
                 File.Copy(_filePath, dlg.FileName, overwrite: true);
-                Toast.Show("저장됨 ✓");
+                Toast.Show(L.T("thumb.saved"));
             }
         }
-        catch (Exception ex) { CrashLog.Write("save-as", ex); Toast.Show("저장 실패"); }
+        catch (Exception ex) { CrashLog.Write("save-as", ex); Toast.Show(L.T("thumb.saveFail")); }
         finally { StartDismissIfEnabled(); }
     }
 
@@ -464,37 +464,37 @@ public sealed class ThumbnailWindow : Window
     private async void OcrCurrent()
     {
         _dismiss.Stop();
-        Toast.Show("텍스트 인식 중…");
+        Toast.Show(L.T("toast.ocrBusy"));
         try
         {
             using var bmp = new System.Drawing.Bitmap(_filePath);
             string? text = await Ocr.RecognizeAsync(bmp);
             if (text == null)
-                Toast.Show("OCR 사용 불가 (모델 파일 누락)", 2600);
+                Toast.Show(L.T("toast.ocrUnavailable"), 2600);
             else if (text.Trim().Length == 0)
-                Toast.Show("인식된 텍스트 없음");
+                Toast.Show(L.T("toast.ocrNoText"));
             else
             {
                 ImageClipboard.CopyText(text);
-                Toast.Show("텍스트 복사됨 ✓");
+                Toast.Show(L.T("toast.textCopied"));
             }
         }
-        catch (Exception ex) { CrashLog.Write("ocr-thumb", ex); Toast.Show("OCR 실패"); }
+        catch (Exception ex) { CrashLog.Write("ocr-thumb", ex); Toast.Show(L.T("toast.ocrFailed")); }
         finally { StartDismissIfEnabled(); }
     }
 
     private async void ShareCurrent()
     {
-        if (!Uploader.Available) { Toast.Show("업로드 비활성화됨 — 설정에서 Imgur 켜기", 2600); return; }
+        if (!Uploader.Available) { Toast.Show(L.T("thumb.uploadDisabled"), 2600); return; }
         _dismiss.Stop();
-        Toast.Show("업로드 중…");
+        Toast.Show(L.T("thumb.uploading"));
         try
         {
             string? url = await Uploader.UploadImgurAsync(_filePath);
-            if (string.IsNullOrEmpty(url)) Toast.Show("업로드 실패");
-            else { ImageClipboard.CopyText(url); Toast.Show("링크 복사됨 ✓", 2200); }
+            if (string.IsNullOrEmpty(url)) Toast.Show(L.T("thumb.uploadFail"));
+            else { ImageClipboard.CopyText(url); Toast.Show(L.T("thumb.linkCopied"), 2200); }
         }
-        catch (Exception ex) { CrashLog.Write("share-thumb", ex); Toast.Show("업로드 실패"); }
+        catch (Exception ex) { CrashLog.Write("share-thumb", ex); Toast.Show(L.T("thumb.uploadFail")); }
         finally { StartDismissIfEnabled(); }
     }
 

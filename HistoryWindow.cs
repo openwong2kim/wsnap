@@ -57,18 +57,18 @@ public sealed class HistoryWindow : Window
 
     private HistoryWindow()
     {
-        Title = "wsnap — 캡처 히스토리";
+        Title = L.T("hist.title");
         Width = 920; Height = 620; MinWidth = 560; MinHeight = 360;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Theme.Apply(this);
 
         // header
-        var title = new TextBlock { Text = "캡처 히스토리", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Theme.Brush("Text"), VerticalAlignment = VerticalAlignment.Center };
+        var title = new TextBlock { Text = L.T("hist.header"), FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Theme.Brush("Text"), VerticalAlignment = VerticalAlignment.Center };
         _count = new TextBlock { Foreground = Theme.Brush("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
         var right = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         right.Children.Add(_count);
-        right.Children.Add(HeaderBtn("새로고침", Reload));
-        right.Children.Add(HeaderBtn("폴더 열기", OpenFolder));
+        right.Children.Add(HeaderBtn(L.T("hist.refresh"), Reload));
+        right.Children.Add(HeaderBtn(L.T("hist.openFolder"), OpenFolder));
         var headerGrid = new Grid { Margin = new Thickness(18, 12, 18, 12) };
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -123,9 +123,9 @@ public sealed class HistoryWindow : Window
     {
         var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         sp.Children.Add(new Border { Child = Icons.Make("folder", 44, Theme.Brush("Muted2")), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 14) });
-        sp.Children.Add(new TextBlock { Text = "아직 저장된 캡처가 없어요", Foreground = Theme.Brush("Muted"), FontSize = 15, HorizontalAlignment = HorizontalAlignment.Center });
-        sp.Children.Add(new TextBlock { Text = "설정에서 '히스토리 보관'을 켜면 날짜별로 영구 저장됩니다", Foreground = Theme.Brush("Muted2"), FontSize = 12.5, Margin = new Thickness(0, 6, 0, 16), HorizontalAlignment = HorizontalAlignment.Center });
-        var open = new Button { Style = Theme.Style("GhostButton"), Content = "설정 열기", HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 96 };
+        sp.Children.Add(new TextBlock { Text = L.T("hist.empty"), Foreground = Theme.Brush("Muted"), FontSize = 15, HorizontalAlignment = HorizontalAlignment.Center });
+        sp.Children.Add(new TextBlock { Text = L.T("hist.emptyHint"), Foreground = Theme.Brush("Muted2"), FontSize = 12.5, Margin = new Thickness(0, 6, 0, 16), HorizontalAlignment = HorizontalAlignment.Center });
+        var open = new Button { Style = Theme.Style("GhostButton"), Content = L.T("hist.openSettings"), HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 96 };
         open.Click += (_, _) => SettingsWindow.ShowSingleton(() => { });
         sp.Children.Add(open);
         return new Border { Child = sp, Visibility = Visibility.Collapsed };
@@ -151,7 +151,7 @@ public sealed class HistoryWindow : Window
         _grid.Children.Clear();
         foreach (var it in _all) _grid.Children.Add(BuildTile(it));
 
-        _count.Text = _all.Count == 0 ? "" : $"{_all.Count}장";
+        _count.Text = _all.Count == 0 ? "" : L.T("hist.count", _all.Count);
         _empty.Visibility = _all.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         _scroller.Visibility = _all.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -180,11 +180,11 @@ public sealed class HistoryWindow : Window
         };
 
         var bar = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 2) };
-        bar.Children.Add(IconBtn("copy", "이미지 복사", () => CopyImage(it)));
-        bar.Children.Add(IconBtn("edit", "편집", () => Edit(it)));
-        bar.Children.Add(IconBtn("folder", "폴더에서 보기", () => Reveal(it)));
-        bar.Children.Add(IconBtn("open", "열기", () => OpenFile(it)));
-        bar.Children.Add(IconBtn("trash", "삭제", () => Delete(it), danger: true));
+        bar.Children.Add(IconBtn("copy", L.T("hist.copy"), () => CopyImage(it)));
+        bar.Children.Add(IconBtn("edit", L.T("hist.edit"), () => Edit(it)));
+        bar.Children.Add(IconBtn("folder", L.T("hist.reveal"), () => Reveal(it)));
+        bar.Children.Add(IconBtn("open", L.T("hist.open"), () => OpenFile(it)));
+        bar.Children.Add(IconBtn("trash", L.T("hist.delete"), () => Delete(it), danger: true));
         var barWrap = new Border
         {
             VerticalAlignment = VerticalAlignment.Bottom, Height = 30, CornerRadius = new CornerRadius(0, 0, 6, 6),
@@ -230,18 +230,18 @@ public sealed class HistoryWindow : Window
         {
             if (!maybeDrag) return;
             maybeDrag = false;
-            if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) { ImageClipboard.CopyText(it.Path); Toast.Show("경로 복사됨"); }
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) { ImageClipboard.CopyText(it.Path); Toast.Show(L.T("hist.pathCopied")); }
             else CopyImage(it);
         };
 
         // context menu mirrors the action bar
         var cm = new ContextMenu();
-        cm.Items.Add(Menu("이미지 복사", () => CopyImage(it)));
-        cm.Items.Add(Menu("편집", () => Edit(it)));
-        cm.Items.Add(Menu("폴더에서 보기", () => Reveal(it)));
-        cm.Items.Add(Menu("열기", () => OpenFile(it)));
+        cm.Items.Add(Menu(L.T("hist.copy"), () => CopyImage(it)));
+        cm.Items.Add(Menu(L.T("hist.edit"), () => Edit(it)));
+        cm.Items.Add(Menu(L.T("hist.reveal"), () => Reveal(it)));
+        cm.Items.Add(Menu(L.T("hist.open"), () => OpenFile(it)));
         cm.Items.Add(new Separator());
-        cm.Items.Add(Menu("삭제", () => Delete(it)));
+        cm.Items.Add(Menu(L.T("hist.delete"), () => Delete(it)));
         tile.ContextMenu = cm;
 
         return tile;
@@ -290,13 +290,13 @@ public sealed class HistoryWindow : Window
 
     private void CopyImage(HistoryItem it)
     {
-        if (!File.Exists(it.Path)) { Toast.Show("파일을 찾을 수 없어요"); Reload(); return; }
-        if (ImageClipboard.CopyImageFile(it.Path)) Toast.Show("이미지 복사됨 ✓"); else Toast.Show("복사 실패");
+        if (!File.Exists(it.Path)) { Toast.Show(L.T("hist.notFound")); Reload(); return; }
+        if (ImageClipboard.CopyImageFile(it.Path)) Toast.Show(L.T("hist.imageCopied")); else Toast.Show(L.T("hist.copyFail"));
     }
 
     private void Edit(HistoryItem it)
     {
-        if (!File.Exists(it.Path)) { Toast.Show("파일을 찾을 수 없어요"); Reload(); return; }
+        if (!File.Exists(it.Path)) { Toast.Show(L.T("hist.notFound")); Reload(); return; }
         var ed = new EditorWindow(it.Path);
         ed.Closed += (_, _) => { if (!string.IsNullOrEmpty(ed.ResultPath)) { new ThumbnailWindow(ed.ResultPath!, edited: true).Show(); Reload(); } };
         ed.Show(); ed.Activate();
@@ -316,7 +316,7 @@ public sealed class HistoryWindow : Window
 
     private void Delete(HistoryItem it)
     {
-        if (System.Windows.MessageBox.Show(this, "이 캡처를 삭제할까요?", "삭제", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
+        if (System.Windows.MessageBox.Show(this, L.T("hist.confirmDelete"), L.T("hist.deleteTitle"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
             return;
         try
         {
