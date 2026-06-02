@@ -123,8 +123,6 @@ public sealed class CaptureOverlay : Window
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
-        AllowsTransparency = true;
-        Background = System.Windows.Media.Brushes.Transparent;
         Topmost = true;
         ShowInTaskbar = false;
         Cursor = Cursors.Cross;
@@ -136,8 +134,19 @@ public sealed class CaptureOverlay : Window
 
         _canvas = new System.Windows.Controls.Canvas();
 
+        // Freeze the desktop FIRST so we can decide the window kind. With a frozen backdrop the
+        // overlay can be an OPAQUE window, which renders through WPF's GPU-composited path and
+        // only repaints dirty regions. A transparent (AllowsTransparency=true) window is layered:
+        // every frame Windows re-pushes the ENTIRE window surface (UpdateLayeredWindow) on the
+        // CPU — across a full virtual desktop that's what made the selection drag stutter. We only
+        // fall back to a transparent/layered window when the freeze failed and the live desktop
+        // must show through. AllowsTransparency must be set before the HWND exists, i.e. here.
         // freeze the desktop (best-effort; fall back to a live grab if it fails)
         TryFreeze();
+        AllowsTransparency = _freeze == null;
+        Background = _freeze != null
+            ? System.Windows.Media.Brushes.Black          // fully covered by the frozen image below
+            : System.Windows.Media.Brushes.Transparent;
         if (_freeze != null)
         {
             var frozen = new System.Windows.Controls.Image
