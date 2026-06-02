@@ -55,6 +55,16 @@ public sealed class CaptureOverlay : Window
     private POINT _startPhys;                   // physical device px (for the grab)
     private bool _dragging;
 
+    // Mouse-move coalescing. WM_MOUSEMOVE fires per input event (hundreds–thousands/sec on a
+    // high-polling mouse); doing the heavy per-move work there — rebuilding the zoomed loupe
+    // bitmap and re-rendering the full-screen punch-through dim — stutters the drag. Instead we
+    // stash the latest position and run that work at most once per render frame (~vsync).
+    private System.Windows.Point _moveDip;
+    private POINT _movePhys;
+    private bool _moveDirty;
+    private bool _renderHooked;
+    private int _lastLoupeX = int.MinValue, _lastLoupeY = int.MinValue;  // last source pixel the loupe rebuilt for
+
     private readonly System.Windows.Controls.Canvas _canvas;
     private readonly RectangleGeometry _holeGeo;
     private readonly System.Windows.Shapes.Rectangle _selection;
@@ -239,7 +249,11 @@ public sealed class CaptureOverlay : Window
         MouseMove += OnMove;
         MouseLeftButtonUp += OnUp;
         KeyDown += OnKey;
-        Closed += (_, _) => { _freeze?.Dispose(); _freeze = null; };
+        Closed += (_, _) =>
+        {
+            if (_renderHooked) { CompositionTarget.Rendering -= OnRenderTick; _renderHooked = false; }
+            _freeze?.Dispose(); _freeze = null;
+        };
     }
 
     private void TryFreeze()
@@ -297,8 +311,22 @@ public sealed class CaptureOverlay : Window
 
     private void OnMove(object sender, MouseEventArgs e)
     {
-        var p = e.GetPosition(this);
-        GetCursorPos(out POINT cur);
+        // Cheap: stash the latest position; the heavy work runs on the next render tick.
+        _moveDip = e.GetPosition(this);
+        GetCursorPos(out _movePhys);
+        _moveDirty = true;
+        if (!_renderHooked) { CompositionTarget.Rendering += OnRenderTick; _renderHooked = true; }
+    }
+
+    private void OnRenderTick(object? sender, EventArgs e)
+    {
+        if (!_moveDirty) return;          // no new input since the last frame
+        _moveDirty = false;
+        ProcessMove(_moveDip, _movePhys);
+    }
+
+    private void ProcessMove(System.Windows.Point p, POINT cur)
+    {
         UpdateLoupe(p, cur);
 
         if (!_dragging)
@@ -331,20 +359,27 @@ public sealed class CaptureOverlay : Window
         int bx = phys.X - _vx, by = phys.Y - _vy;
         if (bx < 0 || by < 0 || bx >= _freeze.Width || by >= _freeze.Height) { _loupe.Visibility = Visibility.Collapsed; return; }
 
-        const int sample = 25;                  // odd → real center pixel
-        int sx = Math.Clamp(bx - sample / 2, 0, Math.Max(0, _freeze.Width - sample));
-        int sy = Math.Clamp(by - sample / 2, 0, Math.Max(0, _freeze.Height - sample));
-        int sw = Math.Min(sample, _freeze.Width - sx);
-        int sh = Math.Min(sample, _freeze.Height - sy);
-        try
+        // Rebuilding the zoomed bitmap + colour sample is the expensive part (GDI clone + a
+        // fresh WPF BitmapSource). Only do it when the cursor actually moved to a new source
+        // pixel; the placement below still follows the cursor smoothly every tick.
+        if (bx != _lastLoupeX || by != _lastLoupeY)
         {
-            using var crop = _freeze.Clone(new System.Drawing.Rectangle(sx, sy, sw, sh), _freeze.PixelFormat);
-            _loupeImg.Source = ScreenGrab.ToBitmapSource(crop);
-            var c = _freeze.GetPixel(Math.Clamp(bx, 0, _freeze.Width - 1), Math.Clamp(by, 0, _freeze.Height - 1));
-            _hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
-            _loupeText.Text = $"{_hex}   {phys.X}, {phys.Y}";
+            _lastLoupeX = bx; _lastLoupeY = by;
+            const int sample = 25;                  // odd → real center pixel
+            int sx = Math.Clamp(bx - sample / 2, 0, Math.Max(0, _freeze.Width - sample));
+            int sy = Math.Clamp(by - sample / 2, 0, Math.Max(0, _freeze.Height - sample));
+            int sw = Math.Min(sample, _freeze.Width - sx);
+            int sh = Math.Min(sample, _freeze.Height - sy);
+            try
+            {
+                using var crop = _freeze.Clone(new System.Drawing.Rectangle(sx, sy, sw, sh), _freeze.PixelFormat);
+                _loupeImg.Source = ScreenGrab.ToBitmapSource(crop);
+                var c = _freeze.GetPixel(Math.Clamp(bx, 0, _freeze.Width - 1), Math.Clamp(by, 0, _freeze.Height - 1));
+                _hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+                _loupeText.Text = $"{_hex}   {phys.X}, {phys.Y}";
+            }
+            catch { return; }
         }
-        catch { return; }
 
         double lx = dip.X + 20, ly = dip.Y + 24;
         if (lx + 124 > Width) lx = dip.X - 144;

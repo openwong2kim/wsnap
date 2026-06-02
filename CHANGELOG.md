@@ -3,6 +3,18 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.3.2] - 2026-06-02
+
+### Fixed
+- **Smoother region selection.** Dragging a selection could stutter, especially with a
+  high-polling-rate mouse. The capture overlay was doing its heavy per-move work — rebuilding
+  the zoomed magnifier loupe and re-rendering the full-screen dim — on *every* mouse-move
+  event (hundreds to thousands per second). That work is now coalesced to one render frame
+  (~display refresh), and the loupe's zoomed bitmap is rebuilt only when the cursor moves to a
+  new pixel. Same look and behavior, far less work per drag.
+
+[1.3.2]: https://github.com/openwong2kim/wsnap/releases/tag/v1.3.2
+
 ## [1.3.1] - 2026-06-02
 
 ### Legal / packaging
