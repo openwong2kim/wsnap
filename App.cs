@@ -74,7 +74,7 @@ public partial class App : System.Windows.Application
         SetupTray();
 
         if (_hook.InstallFailed)
-            Toast.Show("단축키 훅 설치 실패 — 보안 소프트웨어가 막았을 수 있어요. 트레이 메뉴로 캡처하세요.", 4000);
+            Toast.Show(L.T("toast.hookFailed"), 4000);
         else
             CrashLog.Telemetry("startup");
 
@@ -110,38 +110,43 @@ public partial class App : System.Windows.Application
 
     private void SetupTray()
     {
-        var menu = new WinForms.ContextMenuStrip();
-        menu.Items.Add($"영역 캡처  ({Settings.Current.HotkeyText})", null, (_, _) => StartCapture());
-        menu.Items.Add("전체 화면 캡처", null, (_, _) => CaptureFullScreen());
-        menu.Items.Add("현재 창 캡처", null, (_, _) => CaptureActiveWindow());
-        menu.Items.Add("직전 영역 다시 캡처", null, (_, _) => RepeatLastRegion());
-
-        var delay = new WinForms.ToolStripMenuItem("지연 캡처");
-        delay.DropDownItems.Add("3초 후 영역 캡처", null, (_, _) => DelayedCapture(3));
-        delay.DropDownItems.Add("5초 후 영역 캡처", null, (_, _) => DelayedCapture(5));
-        menu.Items.Add(delay);
-
-        menu.Items.Add(new WinForms.ToolStripSeparator());
-        menu.Items.Add("텍스트 추출 (OCR 영역)", null, (_, _) => StartOcrCapture());
-        menu.Items.Add("색 추출 (스포이드)", null, (_, _) => StartColorPick());
-        menu.Items.Add("GIF 녹화 (영역)", null, (_, _) => StartGifCapture());
-        menu.Items.Add("스크롤 캡처 (영역)", null, (_, _) => StartScrollCapture());
-        menu.Items.Add(new WinForms.ToolStripSeparator());
-        menu.Items.Add("캡처 폴더 열기", null, (_, _) => OpenCaptureFolder());
-        menu.Items.Add("캡처 히스토리…", null, (_, _) => HistoryWindow.ShowSingleton());
-        menu.Items.Add("열린 썸네일 전체 지우기", null, (_, _) => ThumbnailWindow.ClearAll());
-        menu.Items.Add("설정…", null, (_, _) => SettingsWindow.ShowSingleton(ApplyRuntime));
-        menu.Items.Add(new WinForms.ToolStripSeparator());
-        menu.Items.Add("종료", null, (_, _) => Shutdown());
-
         _tray = new WinForms.NotifyIcon
         {
             Icon = LoadTrayIcon(),
             Visible = true,
-            Text = $"wsnap — {Settings.Current.HotkeyText}로 캡처",
-            ContextMenuStrip = menu
+            Text = L.T("tray.tip", Settings.Current.HotkeyText),
+            ContextMenuStrip = BuildTrayMenu()
         };
         _tray.DoubleClick += (_, _) => StartCapture();
+    }
+
+    /// <summary>Build the tray context menu in the current UI language. Rebuilt on language change.</summary>
+    private WinForms.ContextMenuStrip BuildTrayMenu()
+    {
+        var menu = new WinForms.ContextMenuStrip();
+        menu.Items.Add(L.T("tray.captureRegion", Settings.Current.HotkeyText), null, (_, _) => StartCapture());
+        menu.Items.Add(L.T("tray.captureFull"), null, (_, _) => CaptureFullScreen());
+        menu.Items.Add(L.T("tray.captureWindow"), null, (_, _) => CaptureActiveWindow());
+        menu.Items.Add(L.T("tray.repeatRegion"), null, (_, _) => RepeatLastRegion());
+
+        var delay = new WinForms.ToolStripMenuItem(L.T("tray.delay"));
+        delay.DropDownItems.Add(L.T("tray.delay3"), null, (_, _) => DelayedCapture(3));
+        delay.DropDownItems.Add(L.T("tray.delay5"), null, (_, _) => DelayedCapture(5));
+        menu.Items.Add(delay);
+
+        menu.Items.Add(new WinForms.ToolStripSeparator());
+        menu.Items.Add(L.T("tray.ocr"), null, (_, _) => StartOcrCapture());
+        menu.Items.Add(L.T("tray.colorPick"), null, (_, _) => StartColorPick());
+        menu.Items.Add(L.T("tray.gif"), null, (_, _) => StartGifCapture());
+        menu.Items.Add(L.T("tray.scroll"), null, (_, _) => StartScrollCapture());
+        menu.Items.Add(new WinForms.ToolStripSeparator());
+        menu.Items.Add(L.T("tray.openFolder"), null, (_, _) => OpenCaptureFolder());
+        menu.Items.Add(L.T("tray.history"), null, (_, _) => HistoryWindow.ShowSingleton());
+        menu.Items.Add(L.T("tray.clearThumbs"), null, (_, _) => ThumbnailWindow.ClearAll());
+        menu.Items.Add(L.T("tray.settings"), null, (_, _) => SettingsWindow.ShowSingleton(ApplyRuntime));
+        menu.Items.Add(new WinForms.ToolStripSeparator());
+        menu.Items.Add(L.T("tray.exit"), null, (_, _) => Shutdown());
+        return menu;
     }
 
     /// <summary>Load the bundled app icon (embedded so it works inside the single-file exe).</summary>
@@ -168,9 +173,12 @@ public partial class App : System.Windows.Application
         _clipboard?.SetEnabled(Settings.Current.ClipboardWatch);
         if (_tray != null)
         {
-            _tray.Text = $"wsnap — {Settings.Current.HotkeyText}로 캡처";
-            if (_tray.ContextMenuStrip?.Items.Count > 0)
-                _tray.ContextMenuStrip.Items[0].Text = $"캡처  ({Settings.Current.HotkeyText})";
+            // Rebuild the whole menu so a language change re-localizes every item (and the
+            // hotkey label refreshes either way). The old menu is replaced and disposed.
+            var old = _tray.ContextMenuStrip;
+            _tray.ContextMenuStrip = BuildTrayMenu();
+            old?.Dispose();
+            _tray.Text = L.T("tray.tip", Settings.Current.HotkeyText);
         }
     }
 
@@ -216,7 +224,7 @@ public partial class App : System.Windows.Application
                     break;
 
                 case CaptureOverlay.PostAction.Copy:
-                    if (path != null) { ImageClipboard.CopyImageFile(path); Toast.Show("이미지 복사됨 ✓"); }
+                    if (path != null) { ImageClipboard.CopyImageFile(path); Toast.Show(L.T("toast.imageCopied")); }
                     break;
 
                 case CaptureOverlay.PostAction.Edit:
@@ -254,13 +262,13 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            Toast.Show("텍스트 인식 중…");
+            Toast.Show(L.T("toast.ocrBusy"));
             string? text = await Ocr.RecognizeAsync(bmp);
-            if (text == null) Toast.Show("OCR 사용 불가 (모델 파일 누락)", 2600);
-            else if (text.Trim().Length == 0) Toast.Show("인식된 텍스트 없음");
-            else { ImageClipboard.CopyText(text); Toast.Show("텍스트 복사됨 ✓"); }
+            if (text == null) Toast.Show(L.T("toast.ocrUnavailable"), 2600);
+            else if (text.Trim().Length == 0) Toast.Show(L.T("toast.ocrNoText"));
+            else { ImageClipboard.CopyText(text); Toast.Show(L.T("toast.textCopied")); }
         }
-        catch (Exception ex) { CrashLog.Write("ocr", ex); Toast.Show("OCR 실패"); }
+        catch (Exception ex) { CrashLog.Write("ocr", ex); Toast.Show(L.T("toast.ocrFailed")); }
         finally { bmp.Dispose(); MemoryTrim.TrimNow(); }   // OCR's bitmap is gone now
     }
 
@@ -324,7 +332,7 @@ public partial class App : System.Windows.Application
     /// <summary>Grab a device-px rect, save it, copy it (if enabled), pop a thumbnail.</summary>
     private void DeliverRegion(System.Windows.Int32Rect r)
     {
-        if (r.Width < 1 || r.Height < 1) { Toast.Show("캡처할 영역이 없어요"); return; }
+        if (r.Width < 1 || r.Height < 1) { Toast.Show(L.T("toast.noRegion")); return; }
         try
         {
             var ctx = ForegroundContext(r.Width, r.Height);
@@ -335,7 +343,7 @@ public partial class App : System.Windows.Application
             new ThumbnailWindow(path).Show();
             ScheduleTrim();   // reclaim the full-screen grab bitmap once it's saved & shown
         }
-        catch (Exception ex) { CrashLog.Write("deliver-region", ex); Toast.Show("캡처 실패"); }
+        catch (Exception ex) { CrashLog.Write("deliver-region", ex); Toast.Show(L.T("toast.captureFailed")); }
     }
 
     private void CaptureFullScreen()
@@ -347,29 +355,29 @@ public partial class App : System.Windows.Application
     private void CaptureActiveWindow()
     {
         IntPtr h = GetForegroundWindow();
-        if (h == IntPtr.Zero) { Toast.Show("활성 창을 찾지 못했어요"); return; }
+        if (h == IntPtr.Zero) { Toast.Show(L.T("toast.noActiveWindow")); return; }
         // Extended frame bounds excludes the ~7px invisible resize border GetWindowRect includes.
         if (DwmGetWindowAttribute(h, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT r, Marshal.SizeOf<RECT>()) != 0)
-        { if (!GetWindowRect(h, out r)) { Toast.Show("창 영역을 읽지 못했어요"); return; } }
+        { if (!GetWindowRect(h, out r)) { Toast.Show(L.T("toast.windowReadFail")); return; } }
         DeliverRegion(new System.Windows.Int32Rect(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top));
     }
 
     private void RepeatLastRegion()
     {
         if (CaptureOverlay.LastRegion is { } r) DeliverRegion(r);
-        else { Toast.Show("아직 캡처한 영역이 없어요 — 먼저 영역을 잡아주세요"); StartCapture(); }
+        else { Toast.Show(L.T("toast.noLastRegion")); StartCapture(); }
     }
 
     private void DelayedCapture(int seconds)
     {
         int remaining = seconds;
-        Toast.Show($"{remaining}초 후 캡처…", 950);
+        Toast.Show(L.T("toast.countdown", remaining), 950);
         var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         t.Tick += (_, _) =>
         {
             remaining--;
             if (remaining <= 0) { t.Stop(); StartCapture(); }
-            else Toast.Show($"{remaining}초 후 캡처…", 950);
+            else Toast.Show(L.T("toast.countdown", remaining), 950);
         };
         t.Start();
     }

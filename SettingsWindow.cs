@@ -12,8 +12,10 @@
 // Public License along with this program. If not, see
 // <https://www.gnu.org/licenses/>.
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using WinForms = System.Windows.Forms;
@@ -37,6 +39,10 @@ public sealed class SettingsWindow : Window
     private int _vk; private bool _shift, _ctrl, _alt, _win;
     private bool _capturing;
 
+    // working copy of the UI language
+    private string _lang;
+    private readonly List<ToggleButton> _langButtons = new();
+
     private readonly TextBox _folderBox;
     private readonly TextBox _template;
     private readonly TextBlock _hotkeyLabel;
@@ -59,8 +65,9 @@ public sealed class SettingsWindow : Window
         _onApplied = onApplied;
         var s = Settings.Current;
         _vk = s.HotkeyVk; _shift = s.HotkeyShift; _ctrl = s.HotkeyCtrl; _alt = s.HotkeyAlt; _win = s.HotkeyWin;
+        _lang = L.Normalize(s.Language);
 
-        Title = "wsnap 설정";
+        Title = L.T("set.title");
         Width = 500; SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
@@ -71,60 +78,65 @@ public sealed class SettingsWindow : Window
         // header
         root.Children.Add(new TextBlock
         {
-            Text = "설정", FontSize = 20, FontWeight = FontWeights.Bold,
+            Text = L.T("set.header"), FontSize = 20, FontWeight = FontWeights.Bold,
             Foreground = Theme.Brush("Text"), Margin = new Thickness(2, 0, 0, 14)
         });
+
+        // --- language ---
+        root.Children.Add(Card(L.T("set.cardLanguage"),
+            Row(L.T("set.language"), LanguageSegment(), null),
+            Hint(L.T("set.languageHint"))));
 
         // --- storage ---
         _folderBox = Field(s.SaveFolder, readOnly: true);
         _template = Field(s.FilenameTemplate, readOnly: false);
-        _history = Check("캡처를 날짜별 폴더에 영구 보관 (히스토리)", s.KeepHistory);
-        root.Children.Add(Card("저장",
-            Row("저장 폴더", _folderBox, Btn("찾아보기", PickFolder, primary: false)),
-            Row("파일 이름 형식", _template, null),
-            Hint("토큰: {app} {title} {date} {time} {seq} {w} {h} · 또는 {yyyy-MM-dd_HHmmss} 같은 날짜 형식"),
+        _history = Check(L.T("set.keepHistory"), s.KeepHistory);
+        root.Children.Add(Card(L.T("set.cardStorage"),
+            Row(L.T("set.saveFolder"), _folderBox, Btn(L.T("set.browse"), PickFolder, primary: false)),
+            Row(L.T("set.filenameTemplate"), _template, null),
+            Hint(L.T("set.templateHint")),
             _history));
 
         // --- capture ---
-        _autocopy = Check("캡처하면 자동으로 클립보드에 복사 (Ctrl+V 바로 붙여넣기)", s.AutoCopyOnCapture);
-        _toolbar = Check("영역 선택 후 액션 툴바 표시 (끄면: 드래그하면 즉시 우하단 썸네일)", s.PostCaptureToolbar);
-        root.Children.Add(Card("캡처",
+        _autocopy = Check(L.T("set.autoCopy"), s.AutoCopyOnCapture);
+        _toolbar = Check(L.T("set.toolbar"), s.PostCaptureToolbar);
+        root.Children.Add(Card(L.T("set.cardCapture"),
             _autocopy,
             _toolbar,
-            Hint("기본값: 끔 — 드래그하면 캡처가 바로 우하단 썸네일로 떠오릅니다. 켜면 선택 영역에 복사·저장·편집·OCR·GIF·고정 툴바가 표시됩니다.")));
+            Hint(L.T("set.toolbarHint"))));
 
         // --- thumbnails ---
         _fade = MakeSlider(0, 30, s.AutoDismissSeconds);
         _fadeVal = new TextBlock { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Foreground = Theme.Brush("Muted"), MinWidth = 36 };
-        _fade.ValueChanged += (_, _) => _fadeVal.Text = (int)_fade.Value == 0 ? "끄기" : ((int)_fade.Value).ToString();
-        _fadeVal.Text = (int)_fade.Value == 0 ? "끄기" : ((int)_fade.Value).ToString();
+        _fade.ValueChanged += (_, _) => _fadeVal.Text = (int)_fade.Value == 0 ? L.T("set.off") : ((int)_fade.Value).ToString();
+        _fadeVal.Text = (int)_fade.Value == 0 ? L.T("set.off") : ((int)_fade.Value).ToString();
         _max = MakeSlider(1, 10, s.MaxVisible);
-        root.Children.Add(Card("썸네일",
-            SliderRow("자동 사라짐(초) · 0=끄기", _fade, _fadeVal),
-            SliderRow("최대 동시 표시 개수", _max, null)));
+        root.Children.Add(Card(L.T("set.cardThumbs"),
+            SliderRow(L.T("set.autoDismiss"), _fade, _fadeVal),
+            SliderRow(L.T("set.maxVisible"), _max, null)));
 
         // --- hotkey ---
         _hotkeyLabel = new TextBlock { Text = s.HotkeyText, FontWeight = FontWeights.Bold, Foreground = Theme.Brush("Text"), VerticalAlignment = VerticalAlignment.Center };
-        _swallow = Check("Win+Shift+S도 가로채기 (OS 스니핑툴 대체)", s.SwallowWinShiftS);
-        root.Children.Add(Card("단축키",
-            Row("캡처 단축키", _hotkeyLabel, Btn("변경", BeginCapture, primary: false)),
+        _swallow = Check(L.T("set.swallowWinShiftS"), s.SwallowWinShiftS);
+        root.Children.Add(Card(L.T("set.cardHotkey"),
+            Row(L.T("set.captureHotkey"), _hotkeyLabel, Btn(L.T("set.change"), BeginCapture, primary: false)),
             _swallow));
 
         // --- resident ---
-        _autostart = Check("Windows 시작 시 자동 실행", AutoStart.IsEnabled());
-        _clipboard = Check("클립보드 이미지 자동 썸네일화", s.ClipboardWatch);
-        _telemetry = Check("익명 사용 로그 남기기(로컬 전용, 옵트인)", s.TelemetryOptIn);
-        root.Children.Add(Card("상주 동작", _autostart, _clipboard, _telemetry));
+        _autostart = Check(L.T("set.startWithWindows"), AutoStart.IsEnabled());
+        _clipboard = Check(L.T("set.clipboardWatch"), s.ClipboardWatch);
+        _telemetry = Check(L.T("set.telemetry"), s.TelemetryOptIn);
+        root.Children.Add(Card(L.T("set.cardResident"), _autostart, _clipboard, _telemetry));
 
         // --- upload ---
-        _upload = Check("Imgur 업로드 활성화", s.UploadEnabled);
+        _upload = Check(L.T("set.uploadEnabled"), s.UploadEnabled);
         _imgur = Field(s.ImgurClientId, readOnly: false);
-        root.Children.Add(Card("업로드 (선택)", _upload, Row("Imgur Client-ID", _imgur, null)));
+        root.Children.Add(Card(L.T("set.cardUpload"), _upload, Row(L.T("set.imgurId"), _imgur, null)));
 
         // --- actions ---
         var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-        actions.Children.Add(Btn("취소", Close, primary: false));
-        actions.Children.Add(Btn("저장", ApplyAndClose, primary: true));
+        actions.Children.Add(Btn(L.T("set.cancel"), Close, primary: false));
+        actions.Children.Add(Btn(L.T("set.save"), ApplyAndClose, primary: true));
         root.Children.Add(actions);
 
         Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height * 0.92 };
@@ -137,7 +149,7 @@ public sealed class SettingsWindow : Window
     private void BeginCapture()
     {
         _capturing = true;
-        _hotkeyLabel.Text = "키 조합을 누르세요…";
+        _hotkeyLabel.Text = L.T("set.pressKeys");
         _hotkeyLabel.Foreground = Theme.Brush("Warn");
     }
 
@@ -199,9 +211,37 @@ public sealed class SettingsWindow : Window
         AutoStart.Set(_autostart.IsChecked == true);
         s.StartWithWindows = _autostart.IsChecked == true;
 
+        s.Language = _lang;
+        L.Lang = _lang;          // applies immediately to any window opened after this
+
         s.Save();
         _onApplied();
         Close();
+    }
+
+    /// <summary>Segmented language picker, one toggle per <see cref="L.Available"/> entry.</summary>
+    private FrameworkElement LanguageSegment()
+    {
+        var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var (code, name) in L.Available)
+        {
+            var tb = new ToggleButton
+            {
+                Style = Theme.Style("ToolToggle"),
+                Content = name,
+                Tag = code,
+                IsChecked = code == _lang,
+                Margin = new Thickness(0, 0, 6, 0)
+            };
+            tb.Click += (_, _) =>
+            {
+                _lang = code;
+                foreach (var b in _langButtons) b.IsChecked = (string)b.Tag == _lang;
+            };
+            _langButtons.Add(tb);
+            panel.Children.Add(tb);
+        }
+        return panel;
     }
 
     // ---- themed UI helpers ----

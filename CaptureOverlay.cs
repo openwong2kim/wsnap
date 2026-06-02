@@ -212,9 +212,9 @@ public sealed class CaptureOverlay : Window
             IsHitTestVisible = false,
             Child = new TextBlock
             {
-                Text = mode == CaptureMode.OcrText ? "텍스트 영역 드래그 · 창 클릭 · Esc 취소"
-                     : mode == CaptureMode.ColorPick ? "픽셀을 클릭해 색을 복사 · Esc 취소"
-                     : "드래그=영역 · 창 클릭=창 캡처 · C=색 복사 · Esc 취소",
+                Text = mode == CaptureMode.OcrText ? L.T("ov.hintOcr")
+                     : mode == CaptureMode.ColorPick ? L.T("ov.hintColor")
+                     : L.T("ov.hint"),
                 Foreground = System.Windows.Media.Brushes.White, FontFamily = Theme.Font, FontSize = 13
             }
         };
@@ -295,7 +295,7 @@ public sealed class CaptureOverlay : Window
             return;
         }
         if (e.Key == Key.Escape) { ResultPath = null; Close(); }
-        else if (e.Key == Key.C) { ImageClipboard.CopyText(_hex); Toast.Show($"{_hex} 복사됨 ✓"); }
+        else if (e.Key == Key.C) { ImageClipboard.CopyText(_hex); Toast.Show(L.T("ov.colorCopied", _hex)); }
     }
 
     private void OnDown(object sender, MouseButtonEventArgs e)
@@ -305,7 +305,7 @@ public sealed class CaptureOverlay : Window
         if (_mode == CaptureMode.ColorPick)
         {
             ImageClipboard.CopyText(_hex);
-            Toast.Show($"{_hex} 복사됨 ✓");
+            Toast.Show(L.T("ov.colorCopied", _hex));
             Close();
             return;
         }
@@ -469,13 +469,13 @@ public sealed class CaptureOverlay : Window
     private Border BuildToolbar()
     {
         var row = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-        row.Children.Add(ToolbarBtn("copy", "복사 (C)", () => Choose(PostAction.Copy)));
-        row.Children.Add(ToolbarBtn("save", "저장 (Enter)", () => Choose(PostAction.Save)));
-        row.Children.Add(ToolbarBtn("edit", "편집 (E)", () => Choose(PostAction.Edit)));
-        row.Children.Add(ToolbarBtn("text", "텍스트 추출 (T)", () => Choose(PostAction.Ocr)));
-        row.Children.Add(ToolbarBtn("gif", "GIF 녹화 (G)", () => Choose(PostAction.Gif)));
-        row.Children.Add(ToolbarBtn("pin", "고정 (P)", () => Choose(PostAction.Pin)));
-        row.Children.Add(ToolbarBtn("close", "취소 (Esc)", () => { Action = PostAction.Cancel; Close(); }, danger: true));
+        row.Children.Add(ToolbarBtn("copy", L.T("ov.copy"), () => Choose(PostAction.Copy)));
+        row.Children.Add(ToolbarBtn("save", L.T("ov.save"), () => Choose(PostAction.Save)));
+        row.Children.Add(ToolbarBtn("edit", L.T("ov.edit"), () => Choose(PostAction.Edit)));
+        row.Children.Add(ToolbarBtn("text", L.T("ov.ocr"), () => Choose(PostAction.Ocr)));
+        row.Children.Add(ToolbarBtn("gif", L.T("ov.gif"), () => Choose(PostAction.Gif)));
+        row.Children.Add(ToolbarBtn("pin", L.T("ov.pin"), () => Choose(PostAction.Pin)));
+        row.Children.Add(ToolbarBtn("close", L.T("ov.cancel"), () => { Action = PostAction.Cancel; Close(); }, danger: true));
 
         return new Border
         {
@@ -556,7 +556,7 @@ public sealed class CaptureOverlay : Window
 
     private void UpdateWindowHover(POINT cur)
     {
-        IntPtr hit = IntPtr.Zero; RECT hr = default; string title = "창";
+        IntPtr hit = IntPtr.Zero; RECT hr = default; string title = L.T("ov.window");
         if (_windows != null)
             foreach (var win in _windows)   // forward = topmost-first (EnumWindows z-order)
                 if (cur.X >= win.R.Left && cur.X < win.R.Right && cur.Y >= win.R.Top && cur.Y < win.R.Bottom)

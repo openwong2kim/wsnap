@@ -89,7 +89,7 @@ public sealed class EditorWindow : Window
         _pw = bi.PixelWidth;
         _ph = bi.PixelHeight;
 
-        Title = "wsnap — 편집";
+        Title = L.T("ed.title");
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Theme.Apply(this);
 
@@ -153,26 +153,26 @@ public sealed class EditorWindow : Window
             bar.Children.Add(b);
         }
 
-        ToolBtn("선택", Tool.Select, "선택·이동 (V) · Del 삭제");
+        ToolBtn(L.T("ed.toolSelect"), Tool.Select, L.T("ed.toolSelectTip"));
         bar.Children.Add(Sep());
-        ToolBtn("화살표", Tool.Arrow, "화살표 (A)");
-        ToolBtn("직선", Tool.Line, "직선 (L) · Shift=45°");
-        ToolBtn("사각", Tool.Rect, "사각형 (R) · Shift=정사각");
-        ToolBtn("원", Tool.Ellipse, "타원 (O) · Shift=정원");
-        ToolBtn("펜", Tool.Pen, "펜 (P)");
-        ToolBtn("형광", Tool.Highlight, "형광펜 (H)");
-        ToolBtn("텍스트", Tool.Text, "텍스트 (T)");
-        ToolBtn("번호", Tool.Counter, "번호 단계 (N)");
-        ToolBtn("모자이크", Tool.Mosaic, "모자이크 (M) · 두께로 강도 조절 (굵게=완전 가림)");
-        ToolBtn("흐림", Tool.Blur, "흐림 (B) · 두께로 강도 조절");
-        ToolBtn("자르기", Tool.Crop, "자르기 (C) · Shift=정사각");
+        ToolBtn(L.T("ed.toolArrow"), Tool.Arrow, L.T("ed.toolArrowTip"));
+        ToolBtn(L.T("ed.toolLine"), Tool.Line, L.T("ed.toolLineTip"));
+        ToolBtn(L.T("ed.toolRect"), Tool.Rect, L.T("ed.toolRectTip"));
+        ToolBtn(L.T("ed.toolEllipse"), Tool.Ellipse, L.T("ed.toolEllipseTip"));
+        ToolBtn(L.T("ed.toolPen"), Tool.Pen, L.T("ed.toolPenTip"));
+        ToolBtn(L.T("ed.toolHighlight"), Tool.Highlight, L.T("ed.toolHighlightTip"));
+        ToolBtn(L.T("ed.toolText"), Tool.Text, L.T("ed.toolTextTip"));
+        ToolBtn(L.T("ed.toolCounter"), Tool.Counter, L.T("ed.toolCounterTip"));
+        ToolBtn(L.T("ed.toolMosaic"), Tool.Mosaic, L.T("ed.toolMosaicTip"));
+        ToolBtn(L.T("ed.toolBlur"), Tool.Blur, L.T("ed.toolBlurTip"));
+        ToolBtn(L.T("ed.toolCrop"), Tool.Crop, L.T("ed.toolCropTip"));
 
         bar.Children.Add(Sep());
 
         // thickness segmented
-        AddThickness(bar, "가늘게", 2);
-        AddThickness(bar, "보통", 5);
-        AddThickness(bar, "굵게", 10);
+        AddThickness(bar, L.T("ed.thin"), 2);
+        AddThickness(bar, L.T("ed.medium"), 5);
+        AddThickness(bar, L.T("ed.thick"), 10);
 
         bar.Children.Add(Sep());
 
@@ -207,7 +207,7 @@ public sealed class EditorWindow : Window
             Background = Theme.Brush("Surface"),
             BorderBrush = Theme.Stroke(Theme.BorderStrong), BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
-            ToolTip = "사용자 지정 색",
+            ToolTip = L.T("ed.customColor"),
             Child = new TextBlock { Text = "+", Foreground = Theme.Brush("Muted"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }
         };
         custom.MouseLeftButtonDown += (_, _) => PickCustomColor();
@@ -215,9 +215,9 @@ public sealed class EditorWindow : Window
 
         bar.Children.Add(Sep());
 
-        bar.Children.Add(ActionBtn("복사", "PrimaryButton", () => CopyToClipboard(), "복사 (Ctrl+C)"));
-        bar.Children.Add(ActionBtn("저장", "GhostButton", Save, "저장 (Enter)"));
-        bar.Children.Add(ActionBtn("취소", "GhostButton", () => { ResultPath = null; Close(); }, "취소 (Esc)"));
+        bar.Children.Add(ActionBtn(L.T("ed.copy"), "PrimaryButton", () => CopyToClipboard(), L.T("ed.copyTip")));
+        bar.Children.Add(ActionBtn(L.T("ed.save"), "GhostButton", Save, L.T("ed.saveTip")));
+        bar.Children.Add(ActionBtn(L.T("ed.cancel"), "GhostButton", () => { ResultPath = null; Close(); }, L.T("ed.cancelTip")));
 
         return new Border
         {
@@ -241,7 +241,7 @@ public sealed class EditorWindow : Window
         {
             Style = Theme.Style("ToolToggle"),
             Content = label, Margin = new Thickness(1), MinWidth = 42,
-            ToolTip = $"선 두께 {value}px"
+            ToolTip = L.T("ed.strokeTip", value)
         };
         b.Click += (_, _) => SetThickness(value);
         _thickButtons[value] = b;
@@ -935,12 +935,12 @@ public sealed class EditorWindow : Window
         try
         {
             var img = RenderFinal();
-            if (ImageClipboard.CopyImageSource(img)) Toast.Show("이미지 복사됨 ✓");
-            else Toast.Show("복사 실패");
+            if (ImageClipboard.CopyImageSource(img)) Toast.Show(L.T("ed.copied"));
+            else Toast.Show(L.T("ed.copyFail"));
             CrashLog.Telemetry("edit-copied");
             if (andClose) { ResultPath = null; Close(); }
         }
-        catch (Exception ex) { CrashLog.Write("editor-copy", ex); Toast.Show("복사 실패: " + ex.Message); }
+        catch (Exception ex) { CrashLog.Write("editor-copy", ex); Toast.Show(L.T("ed.copyFailEx", ex.Message)); }
     }
 
     private void Save()
@@ -961,7 +961,7 @@ public sealed class EditorWindow : Window
         catch (Exception ex)
         {
             CrashLog.Write("editor-save", ex);
-            System.Windows.MessageBox.Show("저장 실패: " + ex.Message);
+            System.Windows.MessageBox.Show(L.T("ed.saveFailEx", ex.Message));
         }
     }
 }
