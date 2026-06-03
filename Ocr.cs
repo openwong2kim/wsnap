@@ -57,7 +57,7 @@ public static class Ocr
     public static readonly OcrLanguage[] Languages =
     {
         new("korean",  "한국어 + English",        12.8, true),
-        new("latin",   "English / Latin (32)",   7.9,  false),
+        new("latin",   "Latin — EN/DE/FR/ES/IT… (32)", 7.9, false),
         new("chinese", "中文 + 日本語 + English", 84.5, false),
         new("english", "English",                 8.0,  false),
         new("eslav",   "Кириллица / Cyrillic",   9.0,  false),
