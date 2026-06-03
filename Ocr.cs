@@ -158,9 +158,9 @@ public static class Ocr
                 }
                 else
                 {
-                    var pair = EnsureDownloaded(lang);
-                    if (pair == null) return null;   // download failed → caller shows "unavailable"
-                    (rec, keys) = pair.Value;
+                    var (_, r, k) = ModelPaths(lang);
+                    if (!EnsureInstalledCore(lang, null)) return null;   // download failed → caller shows "unavailable"
+                    rec = r; keys = k;
                 }
 
                 var engine = new RapidOcr();
@@ -177,30 +177,43 @@ public static class Ocr
         }
     }
 
-    /// <summary>
-    /// Ensure a non-embedded language's rec.onnx + dict.txt are present in the per-user cache,
-    /// downloading them from HuggingFace on first use. Returns absolute (rec, dict) paths, or null
-    /// if the download failed. Runs on the OCR worker thread (already off the UI thread).
-    /// </summary>
-    private static (string rec, string keys)? EnsureDownloaded(OcrLanguage lang)
+    /// <summary>Per-user cache paths for a language's downloaded models.</summary>
+    private static (string dir, string rec, string keys) ModelPaths(OcrLanguage lang)
     {
         string dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "wsnap", "models", "v5", lang.Code);
-        Directory.CreateDirectory(dir);
-        string rec = Path.Combine(dir, "rec.onnx");
-        string keys = Path.Combine(dir, "dict.txt");
+        return (dir, Path.Combine(dir, "rec.onnx"), Path.Combine(dir, "dict.txt"));
+    }
 
-        // Both present (and rec non-trivial) → already downloaded.
+    /// <summary>True if the language is ready to use right now (embedded, or already downloaded).</summary>
+    public static bool IsInstalled(OcrLanguage lang)
+    {
+        if (lang.Embedded) return true;
+        var (_, rec, keys) = ModelPaths(lang);
+        return File.Exists(rec) && new FileInfo(rec).Length > 100_000 && File.Exists(keys);
+    }
+
+    /// <summary>
+    /// Ensure the language's models are present, downloading them from HuggingFace if needed.
+    /// Returns false if the download failed. <paramref name="progress"/> reports 0..1 of the
+    /// recognition model download (the large file). Runs synchronously — call via
+    /// <see cref="EnsureInstalledAsync"/> from UI code, or directly from the OCR worker thread.
+    /// </summary>
+    private static bool EnsureInstalledCore(OcrLanguage lang, IProgress<double>? progress)
+    {
+        if (lang.Embedded) return true;
+        var (dir, rec, keys) = ModelPaths(lang);
         if (File.Exists(rec) && new FileInfo(rec).Length > 100_000 && File.Exists(keys))
-            return (rec, keys);
+            return true;
 
         try
         {
+            Directory.CreateDirectory(dir);
             Toast.Show(L.T("toast.ocrDownloading", lang.Native, $"~{lang.SizeMb:0.#} MB"), 3000);
-            DownloadFile($"{ModelBaseUrl}/{lang.Code}/dict.txt", keys);
-            DownloadFile($"{ModelBaseUrl}/{lang.Code}/rec.onnx", rec);
-            return (rec, keys);
+            DownloadFile($"{ModelBaseUrl}/{lang.Code}/dict.txt", keys, null);
+            DownloadFile($"{ModelBaseUrl}/{lang.Code}/rec.onnx", rec, progress);
+            return true;
         }
         catch (Exception ex)
         {
@@ -208,20 +221,36 @@ public static class Ocr
             // Don't leave a half-written model that would fail to load next time.
             try { if (File.Exists(rec)) File.Delete(rec); } catch { }
             Toast.Show(L.T("toast.ocrDownloadFail", lang.Native), 3500);
-            return null;
+            return false;
         }
     }
 
-    /// <summary>Download to a temp file then atomically swap, so a torn write never wins.</summary>
-    private static void DownloadFile(string url, string destPath)
+    /// <summary>Pre-install a language's models (e.g. when the user picks it in settings) so the
+    /// first OCR is instant. No-op if embedded or already present. Reports download progress 0..1.</summary>
+    public static Task<bool> EnsureInstalledAsync(OcrLanguage lang, IProgress<double>? progress = null)
+        => Task.Run(() => EnsureInstalledCore(lang, progress));
+
+    /// <summary>Download to a temp file then atomically swap, so a torn write never wins.
+    /// Streams so progress can be reported against Content-Length (the rec model is several MB).</summary>
+    private static void DownloadFile(string url, string destPath, IProgress<double>? progress)
     {
         string tmp = destPath + ".tmp";
         using (var resp = Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult())
         {
             resp.EnsureSuccessStatusCode();
+            long total = resp.Content.Headers.ContentLength ?? -1;
             using var src = resp.Content.ReadAsStream();
             using var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None);
-            src.CopyTo(fs);
+
+            byte[] buf = new byte[81920];
+            long done = 0;
+            int n;
+            while ((n = src.Read(buf, 0, buf.Length)) > 0)
+            {
+                fs.Write(buf, 0, n);
+                done += n;
+                if (total > 0) progress?.Report((double)done / total);
+            }
         }
         File.Move(tmp, destPath, overwrite: true);
     }

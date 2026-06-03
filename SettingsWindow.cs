@@ -45,7 +45,7 @@ public sealed class SettingsWindow : Window
 
     // working copy of the OCR language
     private string _ocrLang;
-    private Button? _ocrLangBtn;
+    private readonly List<ToggleButton> _ocrLangButtons = new();
 
     private readonly TextBox _folderBox;
     private readonly TextBox _template;
@@ -94,7 +94,8 @@ public sealed class SettingsWindow : Window
 
         // --- OCR language (separate from the UI language above) ---
         root.Children.Add(Card(L.T("set.cardOcr"),
-            Row(L.T("set.ocrLanguage"), OcrLanguageField(), null),
+            new TextBlock { Text = L.T("set.ocrLanguage"), Foreground = Theme.Brush("Muted"), Margin = new Thickness(0, 0, 0, 8) },
+            OcrLanguageSegment(),
             Hint(L.T("set.ocrLanguageHint"))));
 
         // --- storage ---
@@ -255,41 +256,46 @@ public sealed class SettingsWindow : Window
         return panel;
     }
 
-    /// <summary>OCR-language picker: a button showing the current pack, opening a menu of all packs
-    /// (non-embedded ones annotated with their download size).</summary>
-    private FrameworkElement OcrLanguageField()
+    /// <summary>OCR-language picker as an inline wrap of toggle chips (one per pack, non-embedded
+    /// ones annotated with download size). Same proven click model as the UI-language segment —
+    /// no dropdown/ContextMenu, which wasn't opening reliably here.</summary>
+    private FrameworkElement OcrLanguageSegment()
     {
-        _ocrLangBtn = new Button
-        {
-            Style = Theme.Style("GhostButton"),
-            Content = Ocr.Resolve(_ocrLang).Native,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            MinWidth = 200
-        };
-
-        var menu = new ContextMenu();
+        var wrap = new WrapPanel { Margin = new Thickness(0, 2, 0, 4) };
         foreach (var l in Ocr.Languages)
         {
-            string code = l.Code;
-            var item = new MenuItem
+            var lang = l;                 // capture per-iteration
+            var tb = new ToggleButton
             {
-                Header = l.Embedded ? l.Native : $"{l.Native}  (~{l.SizeMb:0.#} MB)"
+                Style = Theme.Style("ToolToggle"),
+                Content = ChipText(lang),
+                Tag = lang.Code,
+                IsChecked = lang.Code == _ocrLang,
+                Margin = new Thickness(0, 0, 6, 6)
             };
-            item.Click += (_, _) =>
+            tb.Click += async (_, _) =>
             {
-                _ocrLang = code;
-                _ocrLangBtn!.Content = Ocr.Resolve(code).Native;
-            };
-            menu.Items.Add(item);
-        }
+                _ocrLang = lang.Code;
+                foreach (var b in _ocrLangButtons) b.IsChecked = (string)b.Tag == _ocrLang;
 
-        _ocrLangBtn.Click += (_, _) =>
-        {
-            menu.PlacementTarget = _ocrLangBtn;
-            menu.IsOpen = true;
-        };
-        return _ocrLangBtn;
+                // Pre-install on pick so the first OCR is instant (the UX the user asked for).
+                if (Ocr.IsInstalled(lang)) return;
+
+                tb.IsEnabled = false;
+                var progress = new Progress<double>(p => tb.Content = $"{lang.Native}  … {p * 100:0}%");
+                try { await Ocr.EnsureInstalledAsync(lang, progress); }
+                catch { /* EnsureInstalledAsync already toasts + logs failures */ }
+                finally { tb.IsEnabled = true; tb.Content = ChipText(lang); }
+            };
+            _ocrLangButtons.Add(tb);
+            wrap.Children.Add(tb);
+        }
+        return wrap;
     }
+
+    /// <summary>Chip label: "✓" when ready to use (embedded or downloaded), else a download-size hint.</summary>
+    private static string ChipText(Ocr.OcrLanguage l)
+        => Ocr.IsInstalled(l) ? $"{l.Native}  ✓" : $"{l.Native}  ↓ ~{l.SizeMb:0.#} MB";
 
     // ---- themed UI helpers ----
 
