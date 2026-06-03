@@ -28,6 +28,10 @@ public sealed class Settings
     /// <summary>UI language code ("en", "ko", …). Default English. See <see cref="L"/>.</summary>
     public string Language { get; set; } = "en";
 
+    /// <summary>OCR recognition language pack code ("korean", "latin", …). Separate from the UI
+    /// language. Default "korean" = the embedded KO+EN model. See <see cref="Ocr.Languages"/>.</summary>
+    public string OcrLanguage { get; set; } = "korean";
+
     // ---- Capture / storage ----
     public string SaveFolder { get; set; } = DefaultSaveFolder();
     public bool KeepHistory { get; set; } = false;          // permanent date-foldered archive
