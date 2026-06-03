@@ -3,7 +3,7 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.5.1] - 2026-06-03
 
 ### Changed
 - **Language picker is now a dropdown with live preview.** All 13 UI languages were already
@@ -11,6 +11,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [S
   Korean, German) were visible. **Settings → Language** is now a proper scrollable dropdown
   listing every language, and picking one **re-localizes the settings window instantly** —
   no more saving and reopening to see the change. Cancelling restores your original language.
+
+### Fixed
+- **OCR pack download survives a language switch.** Changing the display language while an OCR
+  language pack was still downloading left the new chip with no progress and re-clickable
+  (which could kick off a duplicate download). The download state now carries across the live
+  re-render, so progress keeps showing on the correct chip and the pack can't be double-fetched.
 
 ## [1.5.0] - 2026-06-03
 
