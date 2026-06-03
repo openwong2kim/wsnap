@@ -338,6 +338,98 @@ public static class Theme
     </Setter>
   </Style>
 
+  <!-- ===== combo box (dark dropdown — used by the settings language picker) ===== -->
+  <Style x:Key='ComboItem' TargetType='ComboBoxItem'>
+    <Setter Property='FontFamily' Value='{StaticResource UiFont}'/>
+    <Setter Property='FontSize' Value='13'/>
+    <Setter Property='Foreground' Value='{StaticResource TextBrush}'/>
+    <Setter Property='Cursor' Value='Hand'/>
+    <Setter Property='Padding' Value='11,7,11,7'/>
+    <Setter Property='SnapsToDevicePixels' Value='True'/>
+    <Setter Property='Template'>
+      <Setter.Value>
+        <ControlTemplate TargetType='ComboBoxItem'>
+          <Border x:Name='b' Background='Transparent' CornerRadius='6' Margin='3,1,3,1'
+                  Padding='{TemplateBinding Padding}' SnapsToDevicePixels='True'>
+            <ContentPresenter VerticalAlignment='Center'/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property='IsHighlighted' Value='True'>
+              <Setter TargetName='b' Property='Background' Value='{StaticResource SurfaceHiBrush}'/>
+            </Trigger>
+            <Trigger Property='IsSelected' Value='True'>
+              <Setter TargetName='b' Property='Background' Value='{StaticResource AccentBrush}'/>
+              <Setter Property='Foreground' Value='White'/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key='Combo' TargetType='ComboBox'>
+    <Setter Property='FontFamily' Value='{StaticResource UiFont}'/>
+    <Setter Property='FontSize' Value='13'/>
+    <Setter Property='Foreground' Value='{StaticResource TextBrush}'/>
+    <Setter Property='Cursor' Value='Hand'/>
+    <Setter Property='SnapsToDevicePixels' Value='True'/>
+    <Setter Property='MaxDropDownHeight' Value='340'/>
+    <Setter Property='ItemContainerStyle' Value='{StaticResource ComboItem}'/>
+    <Setter Property='Template'>
+      <Setter.Value>
+        <ControlTemplate TargetType='ComboBox'>
+          <Grid>
+            <ToggleButton Focusable='False' ClickMode='Press'
+                IsChecked='{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}'>
+              <ToggleButton.Template>
+                <ControlTemplate TargetType='ToggleButton'>
+                  <Border x:Name='bd' CornerRadius='8' Background='{StaticResource SurfaceBrush}'
+                          BorderBrush='{StaticResource BorderBrush2}' BorderThickness='1' SnapsToDevicePixels='True'>
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width='*'/>
+                        <ColumnDefinition Width='Auto'/>
+                      </Grid.ColumnDefinitions>
+                      <Path Grid.Column='1' x:Name='arw' Margin='0,0,11,0' VerticalAlignment='Center'
+                            Width='10' Height='6' Stretch='Uniform' Fill='{StaticResource MutedBrush}'
+                            Data='M0,0 L5,5 L10,0 Z'/>
+                    </Grid>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property='IsMouseOver' Value='True'>
+                      <Setter TargetName='bd' Property='BorderBrush' Value='{StaticResource BorderStrongBrush}'/>
+                    </Trigger>
+                    <Trigger Property='IsChecked' Value='True'>
+                      <Setter TargetName='bd' Property='BorderBrush' Value='{StaticResource AccentBrush}'/>
+                      <Setter TargetName='arw' Property='Fill' Value='{StaticResource AccentBrush}'/>
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </ToggleButton.Template>
+            </ToggleButton>
+            <ContentPresenter IsHitTestVisible='False'
+                Content='{TemplateBinding SelectionBoxItem}'
+                ContentTemplate='{TemplateBinding SelectionBoxItemTemplate}'
+                Margin='11,7,30,7' VerticalAlignment='Center' HorizontalAlignment='Left'/>
+            <Popup x:Name='PART_Popup' Placement='Bottom' AllowsTransparency='True' Focusable='False'
+                   IsOpen='{TemplateBinding IsDropDownOpen}' PopupAnimation='Slide'>
+              <Border MinWidth='{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}'
+                      MaxHeight='{TemplateBinding MaxDropDownHeight}'
+                      Background='{StaticResource Panel2Brush}' CornerRadius='8'
+                      BorderBrush='{StaticResource BorderStrongBrush}' BorderThickness='1'
+                      Margin='0,4,0,6' SnapsToDevicePixels='True'>
+                <Border.Effect><DropShadowEffect BlurRadius='14' ShadowDepth='3' Opacity='0.45'/></Border.Effect>
+                <ScrollViewer Margin='2'>
+                  <ItemsPresenter/>
+                </ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- ===== slider ===== -->
   <Style x:Key='Track' TargetType='Slider'>
     <Setter Property='Foreground' Value='{StaticResource AccentBrush}'/>

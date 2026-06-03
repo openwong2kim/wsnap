@@ -3,6 +3,15 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **Language picker is now a dropdown with live preview.** All 13 UI languages were already
+  available, but the segmented buttons overflowed the window so only the first few (English,
+  Korean, German) were visible. **Settings → Language** is now a proper scrollable dropdown
+  listing every language, and picking one **re-localizes the settings window instantly** —
+  no more saving and reopening to see the change. Cancelling restores your original language.
+
 ## [1.5.0] - 2026-06-03
 
 ### Added

@@ -28,6 +28,12 @@ namespace Wsnap;
 /// Themed to match the rest of wsnap (dark cards, styled inputs); edits apply to
 /// <see cref="Settings.Current"/> and persist on save, then the callback re-applies
 /// runtime toggles (autostart, clipboard hook).
+///
+/// All edits live in working-copy fields (not read straight off the controls) so the
+/// whole window can be torn down and rebuilt without losing in-progress input. That
+/// rebuild is what powers the <b>live language preview</b>: picking a language in the
+/// dropdown flips <see cref="L.Lang"/> and re-renders every label instantly — no save,
+/// no reopen. Cancelling (or closing without saving) restores the original language.
 /// </summary>
 public sealed class SettingsWindow : Window
 {
@@ -35,25 +41,32 @@ public sealed class SettingsWindow : Window
 
     private readonly Action _onApplied;
 
-    // working copy of the hotkey
+    // ---- working copies (survive a language-preview rebuild) ----
+    private string _lang, _ocrLang, _saveFolder, _filenameTemplate, _imgurId;
     private int _vk; private bool _shift, _ctrl, _alt, _win;
-    private bool _capturing;
+    private bool _keepHistory, _autoCopy, _postToolbar, _swallowWinS, _clipboardWatch, _telemetry, _upload, _autostart;
+    private int _autoDismiss, _maxVisible;
 
-    // working copy of the UI language
-    private string _lang;
-    private readonly List<ToggleButton> _langButtons = new();
+    private readonly string _origLang;   // language to restore if the user cancels the preview
+    private bool _applied;                // true once Save committed — suppresses the restore
+    private bool _building;               // true while BuildContent() runs — suppresses change handlers
+    private bool _capturing;              // hotkey-capture in progress
 
-    // working copy of the OCR language
-    private string _ocrLang;
+    // ---- live controls (recreated on every BuildContent) ----
+    private TextBox? _folderBox, _template, _imgur;
+    private CheckBox? _historyChk, _autocopyChk, _toolbarChk, _swallowChk, _autostartChk, _clipboardChk, _telemetryChk, _uploadChk;
+    private Slider? _fade, _max;
+    private TextBlock? _fadeVal, _hotkeyLabel;
+    private ComboBox? _langCombo;
     private readonly List<ToggleButton> _ocrLangButtons = new();
 
-    private readonly TextBox _folderBox;
-    private readonly TextBox _template;
-    private readonly TextBlock _hotkeyLabel;
-    private readonly Slider _fade, _max;
-    private readonly TextBlock _fadeVal;
-    private readonly CheckBox _autostart, _swallow, _history, _clipboard, _telemetry, _upload, _autocopy, _toolbar;
-    private readonly TextBox _imgur;
+    /// <summary>Display row for the language dropdown; <c>ToString</c> drives both the list and the closed box.</summary>
+    private sealed class LangItem
+    {
+        public string Code = "";
+        public string Name = "";
+        public override string ToString() => Name;
+    }
 
     public static void ShowSingleton(Action onApplied)
     {
@@ -68,15 +81,44 @@ public sealed class SettingsWindow : Window
     {
         _onApplied = onApplied;
         var s = Settings.Current;
-        _vk = s.HotkeyVk; _shift = s.HotkeyShift; _ctrl = s.HotkeyCtrl; _alt = s.HotkeyAlt; _win = s.HotkeyWin;
+
+        // snapshot every setting into a working copy so a rebuild never loses input
+        _origLang = L.Lang;
         _lang = L.Normalize(s.Language);
         _ocrLang = Ocr.Resolve(s.OcrLanguage).Code;
+        _vk = s.HotkeyVk; _shift = s.HotkeyShift; _ctrl = s.HotkeyCtrl; _alt = s.HotkeyAlt; _win = s.HotkeyWin;
+        _saveFolder = s.SaveFolder;
+        _filenameTemplate = s.FilenameTemplate;
+        _imgurId = s.ImgurClientId;
+        _keepHistory = s.KeepHistory;
+        _autoCopy = s.AutoCopyOnCapture;
+        _postToolbar = s.PostCaptureToolbar;
+        _swallowWinS = s.SwallowWinShiftS;
+        _clipboardWatch = s.ClipboardWatch;
+        _telemetry = s.TelemetryOptIn;
+        _upload = s.UploadEnabled;
+        _autostart = AutoStart.IsEnabled();
+        _autoDismiss = s.AutoDismissSeconds;
+        _maxVisible = s.MaxVisible;
 
-        Title = L.T("set.title");
         Width = 500; SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
         Theme.Apply(this);
+
+        BuildContent();
+        PreviewKeyDown += OnPreviewKeyDown;
+    }
+
+    /// <summary>Build (or rebuild) the whole window in the current UI language. Re-run on a
+    /// language-preview switch so every label re-localizes; all values come from working copies.</summary>
+    private void BuildContent()
+    {
+        _building = true;
+        _ocrLangButtons.Clear();
+        _capturing = false;
+
+        Title = L.T("set.title");
 
         var root = new StackPanel { Margin = new Thickness(18) };
 
@@ -87,9 +129,9 @@ public sealed class SettingsWindow : Window
             Foreground = Theme.Brush("Text"), Margin = new Thickness(2, 0, 0, 14)
         });
 
-        // --- language ---
+        // --- language (live preview) ---
         root.Children.Add(Card(L.T("set.cardLanguage"),
-            Row(L.T("set.language"), LanguageSegment(), null),
+            Row(L.T("set.language"), LanguagePicker(), null),
             Hint(L.T("set.languageHint"))));
 
         // --- OCR language (separate from the UI language above) ---
@@ -99,50 +141,50 @@ public sealed class SettingsWindow : Window
             Hint(L.T("set.ocrLanguageHint"))));
 
         // --- storage ---
-        _folderBox = Field(s.SaveFolder, readOnly: true);
-        _template = Field(s.FilenameTemplate, readOnly: false);
-        _history = Check(L.T("set.keepHistory"), s.KeepHistory);
+        _folderBox = Field(_saveFolder, readOnly: true);
+        _template = Field(_filenameTemplate, readOnly: false);
+        _historyChk = Check(L.T("set.keepHistory"), _keepHistory);
         root.Children.Add(Card(L.T("set.cardStorage"),
             Row(L.T("set.saveFolder"), _folderBox, Btn(L.T("set.browse"), PickFolder, primary: false)),
             Row(L.T("set.filenameTemplate"), _template, null),
             Hint(L.T("set.templateHint")),
-            _history));
+            _historyChk));
 
         // --- capture ---
-        _autocopy = Check(L.T("set.autoCopy"), s.AutoCopyOnCapture);
-        _toolbar = Check(L.T("set.toolbar"), s.PostCaptureToolbar);
+        _autocopyChk = Check(L.T("set.autoCopy"), _autoCopy);
+        _toolbarChk = Check(L.T("set.toolbar"), _postToolbar);
         root.Children.Add(Card(L.T("set.cardCapture"),
-            _autocopy,
-            _toolbar,
+            _autocopyChk,
+            _toolbarChk,
             Hint(L.T("set.toolbarHint"))));
 
         // --- thumbnails ---
-        _fade = MakeSlider(0, 30, s.AutoDismissSeconds);
+        _fade = MakeSlider(0, 30, _autoDismiss);
         _fadeVal = new TextBlock { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Foreground = Theme.Brush("Muted"), MinWidth = 36 };
         _fade.ValueChanged += (_, _) => _fadeVal.Text = (int)_fade.Value == 0 ? L.T("set.off") : ((int)_fade.Value).ToString();
         _fadeVal.Text = (int)_fade.Value == 0 ? L.T("set.off") : ((int)_fade.Value).ToString();
-        _max = MakeSlider(1, 10, s.MaxVisible);
+        _max = MakeSlider(1, 10, _maxVisible);
         root.Children.Add(Card(L.T("set.cardThumbs"),
             SliderRow(L.T("set.autoDismiss"), _fade, _fadeVal),
             SliderRow(L.T("set.maxVisible"), _max, null)));
 
         // --- hotkey ---
-        _hotkeyLabel = new TextBlock { Text = s.HotkeyText, FontWeight = FontWeights.Bold, Foreground = Theme.Brush("Text"), VerticalAlignment = VerticalAlignment.Center };
-        _swallow = Check(L.T("set.swallowWinShiftS"), s.SwallowWinShiftS);
+        _hotkeyLabel = new TextBlock { Text = HotkeyText(), FontWeight = FontWeights.Bold, Foreground = Theme.Brush("Text"), VerticalAlignment = VerticalAlignment.Center };
+        _swallowChk = Check(L.T("set.swallowWinShiftS"), _swallowWinS);
         root.Children.Add(Card(L.T("set.cardHotkey"),
             Row(L.T("set.captureHotkey"), _hotkeyLabel, Btn(L.T("set.change"), BeginCapture, primary: false)),
-            _swallow));
+            _swallowChk));
 
         // --- resident ---
-        _autostart = Check(L.T("set.startWithWindows"), AutoStart.IsEnabled());
-        _clipboard = Check(L.T("set.clipboardWatch"), s.ClipboardWatch);
-        _telemetry = Check(L.T("set.telemetry"), s.TelemetryOptIn);
-        root.Children.Add(Card(L.T("set.cardResident"), _autostart, _clipboard, _telemetry));
+        _autostartChk = Check(L.T("set.startWithWindows"), _autostart);
+        _clipboardChk = Check(L.T("set.clipboardWatch"), _clipboardWatch);
+        _telemetryChk = Check(L.T("set.telemetry"), _telemetry);
+        root.Children.Add(Card(L.T("set.cardResident"), _autostartChk, _clipboardChk, _telemetryChk));
 
         // --- upload ---
-        _upload = Check(L.T("set.uploadEnabled"), s.UploadEnabled);
-        _imgur = Field(s.ImgurClientId, readOnly: false);
-        root.Children.Add(Card(L.T("set.cardUpload"), _upload, Row(L.T("set.imgurId"), _imgur, null)));
+        _uploadChk = Check(L.T("set.uploadEnabled"), _upload);
+        _imgur = Field(_imgurId, readOnly: false);
+        root.Children.Add(Card(L.T("set.cardUpload"), _uploadChk, Row(L.T("set.imgurId"), _imgur, null)));
 
         // --- actions ---
         var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
@@ -152,16 +194,79 @@ public sealed class SettingsWindow : Window
 
         Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height * 0.92 };
 
-        PreviewKeyDown += OnPreviewKeyDown;
+        _building = false;
+    }
+
+    /// <summary>Pull the live control values back into the working copies (called before a
+    /// rebuild or save). Hotkey / language / OCR-language are already kept live by their handlers.</summary>
+    private void SyncFromUi()
+    {
+        if (_folderBox != null) _saveFolder = _folderBox.Text;
+        if (_template != null) _filenameTemplate = _template.Text;
+        if (_imgur != null) _imgurId = _imgur.Text;
+        if (_historyChk != null) _keepHistory = _historyChk.IsChecked == true;
+        if (_autocopyChk != null) _autoCopy = _autocopyChk.IsChecked == true;
+        if (_toolbarChk != null) _postToolbar = _toolbarChk.IsChecked == true;
+        if (_swallowChk != null) _swallowWinS = _swallowChk.IsChecked == true;
+        if (_autostartChk != null) _autostart = _autostartChk.IsChecked == true;
+        if (_clipboardChk != null) _clipboardWatch = _clipboardChk.IsChecked == true;
+        if (_telemetryChk != null) _telemetry = _telemetryChk.IsChecked == true;
+        if (_uploadChk != null) _upload = _uploadChk.IsChecked == true;
+        if (_fade != null) _autoDismiss = (int)_fade.Value;
+        if (_max != null) _maxVisible = (int)_max.Value;
+    }
+
+    /// <summary>Restore the original UI language if the user closes without saving the preview.</summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        if (!_applied) L.Lang = _origLang;
+        base.OnClosed(e);
+    }
+
+    // ---- language picker (dropdown + live preview) ----
+
+    /// <summary>UI-language dropdown over every <see cref="L.Available"/> entry. Picking a language
+    /// preserves all other in-progress edits, flips <see cref="L.Lang"/>, and rebuilds the window
+    /// so the change previews instantly.</summary>
+    private FrameworkElement LanguagePicker()
+    {
+        var combo = new ComboBox { Style = Theme.Style("Combo"), Width = 240, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var (code, name) in L.Available)
+        {
+            var item = new LangItem { Code = code, Name = name };
+            combo.Items.Add(item);
+            if (code == _lang) combo.SelectedItem = item;
+        }
+        if (combo.SelectedItem == null && combo.Items.Count > 0) combo.SelectedIndex = 0;
+
+        combo.SelectionChanged += (_, _) =>
+        {
+            if (_building) return;
+            if (combo.SelectedItem is LangItem li && li.Code != _lang)
+            {
+                SyncFromUi();        // keep every other edit
+                _lang = li.Code;
+                L.Lang = _lang;      // preview now
+                BuildContent();      // re-render every label in the new language
+            }
+        };
+        _langCombo = combo;
+        return combo;
     }
 
     // ---- hotkey capture ----
 
+    private string HotkeyText() =>
+        new Settings { HotkeyVk = _vk, HotkeyShift = _shift, HotkeyCtrl = _ctrl, HotkeyAlt = _alt, HotkeyWin = _win }.HotkeyText;
+
     private void BeginCapture()
     {
         _capturing = true;
-        _hotkeyLabel.Text = L.T("set.pressKeys");
-        _hotkeyLabel.Foreground = Theme.Brush("Warn");
+        if (_hotkeyLabel != null)
+        {
+            _hotkeyLabel.Text = L.T("set.pressKeys");
+            _hotkeyLabel.Foreground = Theme.Brush("Warn");
+        }
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -188,77 +293,57 @@ public sealed class SettingsWindow : Window
 
     private void RefreshHotkeyLabel()
     {
-        var tmp = new Settings { HotkeyVk = _vk, HotkeyShift = _shift, HotkeyCtrl = _ctrl, HotkeyAlt = _alt, HotkeyWin = _win };
-        _hotkeyLabel.Text = tmp.HotkeyText;
+        if (_hotkeyLabel == null) return;
+        _hotkeyLabel.Text = HotkeyText();
         _hotkeyLabel.Foreground = Theme.Brush("Text");
     }
 
     private void PickFolder()
     {
+        if (_folderBox == null) return;
         using var dlg = new WinForms.FolderBrowserDialog { SelectedPath = _folderBox.Text };
         if (dlg.ShowDialog() == WinForms.DialogResult.OK)
-            _folderBox.Text = dlg.SelectedPath;
+        {
+            _saveFolder = dlg.SelectedPath;
+            _folderBox.Text = _saveFolder;
+        }
     }
 
     // ---- apply ----
 
     private void ApplyAndClose()
     {
+        SyncFromUi();
         var s = Settings.Current;
-        s.SaveFolder = _folderBox.Text;
-        s.FilenameTemplate = string.IsNullOrWhiteSpace(_template.Text) ? Settings.DefaultFilenameTemplate : _template.Text.Trim();
-        s.KeepHistory = _history.IsChecked == true;
-        s.AutoDismissSeconds = (int)_fade.Value;
-        s.MaxVisible = (int)_max.Value;
-        s.AutoCopyOnCapture = _autocopy.IsChecked == true;
-        s.PostCaptureToolbar = _toolbar.IsChecked == true;
+        s.SaveFolder = _saveFolder;
+        s.FilenameTemplate = string.IsNullOrWhiteSpace(_filenameTemplate) ? Settings.DefaultFilenameTemplate : _filenameTemplate.Trim();
+        s.KeepHistory = _keepHistory;
+        s.AutoDismissSeconds = _autoDismiss;
+        s.MaxVisible = _maxVisible;
+        s.AutoCopyOnCapture = _autoCopy;
+        s.PostCaptureToolbar = _postToolbar;
         s.HotkeyVk = _vk; s.HotkeyShift = _shift; s.HotkeyCtrl = _ctrl; s.HotkeyAlt = _alt; s.HotkeyWin = _win;
-        s.SwallowWinShiftS = _swallow.IsChecked == true;
-        s.ClipboardWatch = _clipboard.IsChecked == true;
-        s.TelemetryOptIn = _telemetry.IsChecked == true;
-        s.UploadEnabled = _upload.IsChecked == true;
-        s.ImgurClientId = _imgur.Text.Trim();
+        s.SwallowWinShiftS = _swallowWinS;
+        s.ClipboardWatch = _clipboardWatch;
+        s.TelemetryOptIn = _telemetry;
+        s.UploadEnabled = _upload;
+        s.ImgurClientId = _imgurId.Trim();
 
-        AutoStart.Set(_autostart.IsChecked == true);
-        s.StartWithWindows = _autostart.IsChecked == true;
+        AutoStart.Set(_autostart);
+        s.StartWithWindows = _autostart;
 
         s.Language = _lang;
         L.Lang = _lang;          // applies immediately to any window opened after this
         s.OcrLanguage = _ocrLang; // next OCR rebuilds the engine for this language
 
+        _applied = true;         // keep the chosen language; don't restore on close
         s.Save();
         _onApplied();
         Close();
     }
 
-    /// <summary>Segmented language picker, one toggle per <see cref="L.Available"/> entry.</summary>
-    private FrameworkElement LanguageSegment()
-    {
-        var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
-        foreach (var (code, name) in L.Available)
-        {
-            var tb = new ToggleButton
-            {
-                Style = Theme.Style("ToolToggle"),
-                Content = name,
-                Tag = code,
-                IsChecked = code == _lang,
-                Margin = new Thickness(0, 0, 6, 0)
-            };
-            tb.Click += (_, _) =>
-            {
-                _lang = code;
-                foreach (var b in _langButtons) b.IsChecked = (string)b.Tag == _lang;
-            };
-            _langButtons.Add(tb);
-            panel.Children.Add(tb);
-        }
-        return panel;
-    }
-
     /// <summary>OCR-language picker as an inline wrap of toggle chips (one per pack, non-embedded
-    /// ones annotated with download size). Same proven click model as the UI-language segment —
-    /// no dropdown/ContextMenu, which wasn't opening reliably here.</summary>
+    /// ones annotated with download size). Same proven click model as the editor tool toggles.</summary>
     private FrameworkElement OcrLanguageSegment()
     {
         var wrap = new WrapPanel { Margin = new Thickness(0, 2, 0, 4) };
