@@ -1,12 +1,12 @@
 PackageIdentifier: openwong2kim.wsnap
-PackageVersion: 1.4.0
+PackageVersion: 1.5.0
 InstallerType: portable
 Commands:
   - wsnap
-ReleaseDate: 2026-06-02
+ReleaseDate: 2026-06-03
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/openwong2kim/wsnap/releases/download/v1.4.0/wsnap.exe
-    InstallerSha256: AB0C3E89FF83760DCE0A2D4B99D297636E45D9D436AB52DE922692622F647CD3
+    InstallerUrl: https://github.com/openwong2kim/wsnap/releases/download/v1.5.0/wsnap.exe
+    InstallerSha256: 545517D545BBB41E4D722E73C6DAC7DB8102D2E442ACFE4E48B3433FC8A8B32C
 ManifestType: installer
 ManifestVersion: 1.6.0
