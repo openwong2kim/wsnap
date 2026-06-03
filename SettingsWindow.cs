@@ -57,8 +57,9 @@ public sealed class SettingsWindow : Window
     private CheckBox? _historyChk, _autocopyChk, _toolbarChk, _swallowChk, _autostartChk, _clipboardChk, _telemetryChk, _uploadChk;
     private Slider? _fade, _max;
     private TextBlock? _fadeVal, _hotkeyLabel;
-    private ComboBox? _langCombo;
+    private ComboBox? _langCombo;   // current language combo (rebuild swaps it); also a smoke-test seam
     private readonly List<ToggleButton> _ocrLangButtons = new();
+    private readonly HashSet<string> _ocrInstalling = new();   // OCR codes downloading now — survives a rebuild
 
     /// <summary>Display row for the language dropdown; <c>ToString</c> drives both the list and the closed box.</summary>
     private sealed class LangItem
@@ -350,12 +351,14 @@ public sealed class SettingsWindow : Window
         foreach (var l in Ocr.Languages)
         {
             var lang = l;                 // capture per-iteration
+            bool installing = _ocrInstalling.Contains(lang.Code);
             var tb = new ToggleButton
             {
                 Style = Theme.Style("ToolToggle"),
-                Content = ChipText(lang),
+                Content = installing ? $"{lang.Native}  …" : ChipText(lang),
                 Tag = lang.Code,
                 IsChecked = lang.Code == _ocrLang,
+                IsEnabled = !installing,   // a rebuild mid-download lands on a disabled chip, not a clickable one
                 Margin = new Thickness(0, 0, 6, 6)
             };
             tb.Click += async (_, _) =>
@@ -364,19 +367,37 @@ public sealed class SettingsWindow : Window
                 foreach (var b in _ocrLangButtons) b.IsChecked = (string)b.Tag == _ocrLang;
 
                 // Pre-install on pick so the first OCR is instant (the UX the user asked for).
-                if (Ocr.IsInstalled(lang)) return;
+                if (Ocr.IsInstalled(lang) || _ocrInstalling.Contains(lang.Code)) return;
 
-                tb.IsEnabled = false;
-                var progress = new Progress<double>(p => tb.Content = $"{lang.Native}  … {p * 100:0}%");
+                // Route progress/enable to whatever chip is live now — a language-preview rebuild
+                // swaps the button out from under us, so capturing `tb` would update an orphan.
+                _ocrInstalling.Add(lang.Code);
+                SetChipEnabled(lang.Code, false);
+                var progress = new Progress<double>(p => SetChipContent(lang.Code, $"{lang.Native}  … {p * 100:0}%"));
                 try { await Ocr.EnsureInstalledAsync(lang, progress); }
                 catch { /* EnsureInstalledAsync already toasts + logs failures */ }
-                finally { tb.IsEnabled = true; tb.Content = ChipText(lang); }
+                finally
+                {
+                    _ocrInstalling.Remove(lang.Code);
+                    SetChipEnabled(lang.Code, true);
+                    SetChipContent(lang.Code, ChipText(lang));
+                }
             };
             _ocrLangButtons.Add(tb);
             wrap.Children.Add(tb);
         }
         return wrap;
     }
+
+    /// <summary>Find the live OCR chip for a language code (the list is rebuilt on a language preview).</summary>
+    private ToggleButton? OcrChip(string code)
+    {
+        foreach (var b in _ocrLangButtons) if ((string)b.Tag == code) return b;
+        return null;
+    }
+
+    private void SetChipEnabled(string code, bool enabled) { var b = OcrChip(code); if (b != null) b.IsEnabled = enabled; }
+    private void SetChipContent(string code, string text) { var b = OcrChip(code); if (b != null) b.Content = text; }
 
     /// <summary>Chip label: "✓" when ready to use (embedded or downloaded), else a download-size hint.</summary>
     private static string ChipText(Ocr.OcrLanguage l)
