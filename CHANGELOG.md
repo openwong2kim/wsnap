@@ -3,6 +3,24 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.5.0] - 2026-06-03
+
+### Added
+- **OCR in many more languages.** Text extraction was Korean-only (the model also covers
+  English). You can now pick the OCR recognition language under **Settings → OCR**, separate
+  from the display language. Korean (incl. English) stays built in; other PP-OCRv5 script packs
+  — Latin (English/German/French/Spanish/Italian and ~27 more), Chinese (+Japanese), Cyrillic,
+  Greek, Arabic, Devanagari, Tamil, Telugu, Thai — **download on demand** the moment you pick
+  them (with a progress indicator), so the first OCR is instant afterward. Packs are cached
+  per-user; the single-file exe stays the same size.
+- **UI now available in 13 languages.** English and Korean are built in; German, French,
+  Spanish, Portuguese, Italian, Japanese, Simplified Chinese, Russian, Arabic, Hindi, and
+  Vietnamese ship as community translation packs (`locales/<code>.json`). Pick the display
+  language under **Settings → Language**. The non-English/Korean translations are community
+  drafts — corrections are welcome via a pull request (see `locales/README.md`).
+
+[1.5.0]: https://github.com/openwong2kim/wsnap/releases/tag/v1.5.0
+
 ## [1.4.0] - 2026-06-02
 
 ### Added
