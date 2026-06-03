@@ -11,33 +11,77 @@
 // for more details. You should have received a copy of the GNU General
 // Public License along with this program. If not, see
 // <https://www.gnu.org/licenses/>.
+using System;
 using System.Collections.Generic;
+using System.Text.Json;
 
 namespace Wsnap;
 
 /// <summary>
 /// Tiny string-table localization. <see cref="T(string)"/> returns the entry for the
 /// current <see cref="Lang"/>, falling back to English (the default) when a language is
-/// missing a key. Add a language by adding its table to <see cref="Tables"/>; the picker
-/// in <see cref="SettingsWindow"/> is driven by <see cref="Available"/>.
-/// All format-bearing strings use {0}, {1}, … so <see cref="T(string, object[])"/> can fill them.
+/// missing a key. English and Korean are built in (below). Additional languages are
+/// community translation packs shipped as <c>locales/&lt;code&gt;.json</c> (embedded as
+/// <c>wsnap.locale.&lt;code&gt;.json</c>): drop one in, add it to the csproj glob, and it
+/// auto-registers here — no code change. Each pack may carry a <c>"_native"</c> key for its
+/// display name. See <c>locales/README.md</c>. The picker in <see cref="SettingsWindow"/> is
+/// driven by <see cref="Available"/>. All format-bearing strings use {0}, {1}, … so
+/// <see cref="T(string, object[])"/> can fill them.
 /// </summary>
 public static class L
 {
     /// <summary>BCP-47-ish short code of the active UI language. Default: English.</summary>
     public static string Lang { get; set; } = "en";
 
+    private static readonly Dictionary<string, Dictionary<string, string>> _tables = new();
+    private static readonly List<(string Code, string Name)> _available = new();
+
     /// <summary>Languages offered in the settings picker: (code, native display name).</summary>
-    public static readonly (string Code, string Name)[] Available =
+    public static IReadOnlyList<(string Code, string Name)> Available => _available;
+
+    // Runs AFTER all field initializers, so En/Ko are populated. Registers the built-ins,
+    // then merges any embedded locale packs (contributed translations).
+    static L()
     {
-        ("en", "English"),
-        ("ko", "한국어"),
-    };
+        _tables["en"] = En; _available.Add(("en", "English"));
+        _tables["ko"] = Ko; _available.Add(("ko", "한국어"));
+        LoadEmbeddedPacks();
+    }
+
+    /// <summary>Discover embedded <c>wsnap.locale.&lt;code&gt;.json</c> packs and merge them in.</summary>
+    private static void LoadEmbeddedPacks()
+    {
+        const string prefix = "wsnap.locale.", suffix = ".json";
+        try
+        {
+            var asm = typeof(L).Assembly;
+            foreach (var res in asm.GetManifestResourceNames())
+            {
+                if (!res.StartsWith(prefix, StringComparison.Ordinal) || !res.EndsWith(suffix, StringComparison.Ordinal))
+                    continue;
+                string code = res.Substring(prefix.Length, res.Length - prefix.Length - suffix.Length);
+                if (_tables.ContainsKey(code)) continue;   // never override a built-in
+                try
+                {
+                    using var s = asm.GetManifestResourceStream(res);
+                    if (s == null) continue;
+                    var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(s);
+                    if (dict == null || dict.Count == 0) continue;
+                    string native = dict.TryGetValue("_native", out var n) && !string.IsNullOrWhiteSpace(n) ? n : code;
+                    dict.Remove("_native");
+                    _tables[code] = dict;
+                    _available.Add((code, native));
+                }
+                catch (Exception ex) { CrashLog.Write("locale-pack", ex); }   // skip a bad pack
+            }
+        }
+        catch (Exception ex) { CrashLog.Write("locale-scan", ex); }
+    }
 
     /// <summary>Native display name for a language code (falls back to the code itself).</summary>
     public static string NameOf(string code)
     {
-        foreach (var (c, n) in Available) if (c == code) return n;
+        foreach (var (c, n) in _available) if (c == code) return n;
         return code;
     }
 
@@ -45,26 +89,20 @@ public static class L
     public static string Normalize(string? code)
     {
         if (string.IsNullOrWhiteSpace(code)) return "en";
-        foreach (var (c, _) in Available) if (c == code) return c;
+        foreach (var (c, _) in _available) if (c == code) return c;
         return "en";
     }
 
     /// <summary>Look up a key in the active language; fall back to English, then the key itself.</summary>
     public static string T(string key)
     {
-        if (Tables.TryGetValue(Lang, out var t) && t.TryGetValue(key, out var v)) return v;
+        if (_tables.TryGetValue(Lang, out var t) && t.TryGetValue(key, out var v)) return v;
         if (En.TryGetValue(key, out var e)) return e;
         return key;
     }
 
     /// <summary>Look up a format string and fill its {0}, {1}, … placeholders.</summary>
     public static string T(string key, params object[] args) => string.Format(T(key), args);
-
-    // Lazily built on first use: a plain `static readonly` field would initialize in textual
-    // order — before En/Ko below — and capture their null values. The property defers it.
-    private static Dictionary<string, Dictionary<string, string>>? _tables;
-    private static Dictionary<string, Dictionary<string, string>> Tables =>
-        _tables ??= new() { ["en"] = En, ["ko"] = Ko };
 
     // ---------------------------------------------------------------- English (default)
     private static readonly Dictionary<string, string> En = new()

@@ -34,6 +34,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Community UI translation packs. en/ko are built into Strings.cs; en.json is the
+         contributor template (not shipped). Each locales\<code>.json embeds as
+         wsnap.locale.<code>.json and auto-registers via L.LoadEmbeddedPacks(). Add a language
+         by dropping in locales\<code>.json — no code or csproj change needed. -->
+    <EmbeddedResource Include="locales\*.json" Exclude="locales\en.json">
+      <LogicalName>wsnap.locale.%(Filename).json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- On-device OCR engine: PaddleOCR PP-OCRv5 models on ONNX Runtime (offline, free).
          Replaces the weak Windows.Media.Ocr engine. ExcludeAssets="contentFiles" stops the
          package from copying its own model set loose next to the exe — we embed our own models
