@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://openwong2kim.github.io/wsnap/sitemap.xml

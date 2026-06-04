@@ -1,20 +1,73 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<link rel="icon" type="image/png" href="icon.png" />
-<meta property="og:image" content="icon.png" />
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>wsnap — 화면을 잡고, 그대로 끌어다 놓다</title>
-<meta name="description" content="단축키 한 번으로 영역을 캡처하고, 떠오른 썸네일을 진짜 파일처럼 끌어다 놓는 네이티브 Windows 캡처 도구. OCR, GIF 녹화, 스크롤 캡처, 미니 에디터까지. 100% 로컬·온디바이스." />
+<link rel="icon" type="image/png" href="icon.png" />
+<title>wsnap — 화면을 잡고, 그대로 끌어다 놓다 | Windows 화면 캡처</title>
+<meta name="description" content="단축키 한 번으로 영역을 캡처하고, 떠오른 썸네일을 진짜 파일처럼 끌어다 놓는 네이티브 Windows 화면 캡처 도구. 온디바이스 OCR(한국어+영어), GIF 녹화, 스크롤 캡처, 미니 에디터까지. 무료·100% 로컬·추적 없음." />
+<meta name="keywords" content="wsnap, Windows 화면 캡처, 스크린샷, 캡처 도구, 스니핑 도구, OCR, GIF 녹화, 스크롤 캡처, 드래그앤드롭, screenshot, screen capture, snipping tool" />
+<meta name="author" content="openwong2kim" />
 <meta name="theme-color" content="#0a0a0b" />
+<link rel="canonical" href="https://openwong2kim.github.io/wsnap/" />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="wsnap" />
+<meta property="og:url" content="https://openwong2kim.github.io/wsnap/" />
 <meta property="og:title" content="wsnap — 화면을 잡고, 그대로 끌어다 놓다" />
 <meta property="og:description" content="네이티브 Windows 화면 캡처 도구. 캡처를 진짜 파일처럼 드래그앤드롭. OCR · GIF · 스크롤 캡처 · 미니 에디터. 로컬·온디바이스·추적 없음." />
-<meta property="og:type" content="website" />
+<meta property="og:image" content="https://openwong2kim.github.io/wsnap/og-card.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="wsnap — Windows 화면 캡처 도구" />
 <meta property="og:locale" content="ko_KR" />
-<meta name="twitter:card" content="summary" />
+<meta property="og:locale:alternate" content="en_US" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="wsnap — 화면을 잡고, 그대로 끌어다 놓다" />
 <meta name="twitter:description" content="네이티브 Windows 화면 캡처 도구. 캡처를 진짜 파일처럼 드래그앤드롭. OCR · GIF · 스크롤 캡처 · 미니 에디터. 로컬·온디바이스·추적 없음." />
+<meta name="twitter:image" content="https://openwong2kim.github.io/wsnap/og-card.png" />
+
+<!-- Structured data: SoftwareApplication -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "wsnap",
+  "description": "Native macOS-style screen capture for Windows. Drag the floating thumbnail straight into any app as a real file. Region capture, on-device OCR (Korean + English), GIF recording, scrolling capture, annotation editor. Free, offline, no tracking.",
+  "url": "https://openwong2kim.github.io/wsnap/",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Windows 10, Windows 11",
+  "softwareVersion": "1.5.1",
+  "downloadUrl": "https://github.com/openwong2kim/wsnap/releases/latest",
+  "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+  "image": "https://openwong2kim.github.io/wsnap/og-card.png",
+  "screenshot": "https://openwong2kim.github.io/wsnap/demo.gif",
+  "inLanguage": ["ko", "en"],
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "author": {
+    "@type": "Person",
+    "name": "openwong2kim",
+    "url": "https://github.com/openwong2kim"
+  },
+  "featureList": [
+    "Region screen capture",
+    "Drag-and-drop thumbnail as a real file",
+    "On-device OCR (Korean + English, PaddleOCR PP-OCRv5)",
+    "GIF recording",
+    "Scrolling capture",
+    "Annotation editor",
+    "Multi-monitor PerMonitorV2 DPI accurate capture"
+  ]
+}
+</script>
 <style>
   :root{
     --bg:#0a0a0b;
@@ -701,7 +754,7 @@
           <h3>직접 다운로드</h3>
           <p>Windows 10/11 (x64). 설치 없이 바로 실행하려면 포터블 exe를 받으세요.</p>
           <div class="dl-row">
-            <a class="btn btn-primary" href="https://github.com/openwong2kim/wsnap/releases/download/v1.3.3/wsnap-setup-1.3.3.exe">
+            <a class="btn btn-primary" href="https://github.com/openwong2kim/wsnap/releases/download/v1.5.1/wsnap-setup-1.5.1.exe">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               설치본 (.exe)
             </a>
@@ -714,7 +767,7 @@
           </div>
           <span class="pill">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true"><path d="M12 3l8 4v5c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V7l8-4z" stroke="#3B82F6" stroke-width="2" stroke-linejoin="round"/></svg>
-            v1.3.3 · GPL-3.0 · 무료
+            v1.5.1 · GPL-3.0 · 무료
           </span>
         </div>
 
@@ -778,7 +831,7 @@
         </div>
         <div class="foot-col">
           <h4>설치</h4>
-          <a href="https://github.com/openwong2kim/wsnap/releases/download/v1.3.3/wsnap-setup-1.3.3.exe">설치본</a>
+          <a href="https://github.com/openwong2kim/wsnap/releases/download/v1.5.1/wsnap-setup-1.5.1.exe">설치본</a>
           <a href="#install">Scoop</a>
           <a href="#install">winget</a>
         </div>
