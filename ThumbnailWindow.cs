@@ -448,7 +448,9 @@ public sealed class ThumbnailWindow : Window
     private void EditCurrent()
     {
         _dismiss.Stop();
-        var ed = new EditorWindow(_filePath);
+        EditorWindow ed;
+        try { ed = new EditorWindow(_filePath); }
+        catch (Exception ex) { CrashLog.Write("thumb-edit", ex); Toast.Show(L.T("ed.openFail")); return; }
         ed.Closed += (_, _) =>
         {
             // Edited result pops as its own fresh thumbnail bottom-right (draggable),

@@ -252,7 +252,9 @@ public partial class App : System.Windows.Application
 
     private void OpenEditorThenThumbnail(string path)
     {
-        var ed = new EditorWindow(path);
+        EditorWindow ed;
+        try { ed = new EditorWindow(path); }
+        catch (Exception ex) { CrashLog.Write("open-editor", ex); Toast.Show(L.T("ed.openFail")); return; }
         ed.Closed += (_, _) => { if (!string.IsNullOrEmpty(ed.ResultPath)) new ThumbnailWindow(ed.ResultPath!, edited: true).Show(); };
         ed.Show();
         ed.Activate();
