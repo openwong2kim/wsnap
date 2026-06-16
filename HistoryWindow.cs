@@ -297,7 +297,9 @@ public sealed class HistoryWindow : Window
     private void Edit(HistoryItem it)
     {
         if (!File.Exists(it.Path)) { Toast.Show(L.T("hist.notFound")); Reload(); return; }
-        var ed = new EditorWindow(it.Path);
+        EditorWindow ed;
+        try { ed = new EditorWindow(it.Path); }
+        catch (Exception ex) { CrashLog.Write("history-edit", ex); Toast.Show(L.T("ed.openFail")); return; }
         ed.Closed += (_, _) => { if (!string.IsNullOrEmpty(ed.ResultPath)) { new ThumbnailWindow(ed.ResultPath!, edited: true).Show(); Reload(); } };
         ed.Show(); ed.Activate();
     }

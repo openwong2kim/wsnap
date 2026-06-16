@@ -129,6 +129,9 @@ public sealed class EditorWindow : Window
         SetTool(Tool.Arrow);
         SelectSwatch(0);
         KeyDown += OnKey;
+        AllowDrop = true;                 // accept images dropped anywhere on the window
+        DragOver += OnDragOver;
+        Drop += OnDrop;
         Closed += (_, _) => _srcBmp.Dispose();
     }
 
@@ -315,10 +318,12 @@ public sealed class EditorWindow : Window
         if (e.Key == Key.Escape) { if (_selected != null) { ClearSelection(); return; } ResultPath = null; Close(); return; }
         if (e.Key == Key.Enter) { Save(); return; }
         if (ctrl && e.Key == Key.C) { CopyToClipboard(shift); return; }
+        if (ctrl && e.Key == Key.V) { PasteFromClipboard(); e.Handled = true; return; }
         if (ctrl && e.Key == Key.S) { Save(); return; }
         if (ctrl && (e.Key == Key.Y || (shift && e.Key == Key.Z))) { Redo(); return; }
         if (ctrl && e.Key == Key.Z) { Undo(); return; }
 
+        if (e.Key == Key.ImeProcessed) return;   // IME-composition keys must not trigger tool shortcuts
         var t = e.Key switch
         {
             Key.V => Tool.Select,
@@ -353,12 +358,12 @@ public sealed class EditorWindow : Window
             return;
         }
 
-        if (_tool == Tool.Text) { PlaceText(_start); return; }
-        if (_tool == Tool.Counter) { PlaceCounter(_start); return; }
+        if (_tool == Tool.Text) { PlaceText(_start); e.Handled = true; return; }
+        if (_tool == Tool.Counter) { PlaceCounter(_start); e.Handled = true; return; }
 
         _drawing = true;
         _canvas.CaptureMouse();
-        var brush = new SolidColorBrush(_color);
+        var brush = Frozen(_color);
 
         switch (_tool)
         {
@@ -401,7 +406,7 @@ public sealed class EditorWindow : Window
             case Tool.Highlight:
                 bool hl = _tool == Tool.Highlight;
                 var penBrush = hl
-                    ? new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x66, _color.R, _color.G, _color.B))
+                    ? Frozen(System.Windows.Media.Color.FromArgb(0x66, _color.R, _color.G, _color.B))
                     : brush;
                 _pen = new Polyline
                 {
@@ -488,7 +493,13 @@ public sealed class EditorWindow : Window
 
             case Tool.Rect:
             case Tool.Ellipse:
-                if (_live != null) Commit(new AddOp(_canvas, _live));
+                if (_live != null)
+                {
+                    // a click without a drag leaves Width/Height NaN (or ~0): drop the ghost
+                    if (double.IsNaN(_live.Width) || double.IsNaN(_live.Height) || _live.Width < 2 || _live.Height < 2)
+                        _canvas.Children.Remove(_live);
+                    else Commit(new AddOp(_canvas, _live));
+                }
                 break;
 
             case Tool.Mosaic:
@@ -554,7 +565,7 @@ public sealed class EditorWindow : Window
         geo.Freeze();
         var path = new System.Windows.Shapes.Path
         {
-            Stroke = new SolidColorBrush(_color), StrokeThickness = _thickness,
+            Stroke = Frozen(_color), StrokeThickness = _thickness,
             StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
             StrokeLineJoin = PenLineJoin.Round, Data = geo
         };
@@ -563,20 +574,131 @@ public sealed class EditorWindow : Window
 
     private void PlaceText(System.Windows.Point at)
     {
+        var fg = new SolidColorBrush(_color); fg.Freeze();
         var tb = new TextBox
         {
             Background = System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
-            Foreground = new SolidColorBrush(_color),
-            CaretBrush = new SolidColorBrush(_color),
+            Foreground = fg,
+            CaretBrush = fg,
             FontSize = Math.Max(16, _thickness * 5),
             FontWeight = FontWeights.SemiBold,
             FontFamily = Theme.Font,
             MinWidth = 40, AcceptsReturn = true
         };
+        InputMethod.SetIsInputMethodEnabled(tb, true);      // keep Korean IME alive on the box
         Canvas.SetLeft(tb, at.X); Canvas.SetTop(tb, at.Y);
-        Commit(new AddOp(_canvas, tb));
-        tb.Loaded += (_, _) => tb.Focus();
+
+        // Add now so it lays out, but DON'T commit to undo yet: an empty text box left
+        // behind would be an invisible-but-selectable ghost. Commit on losing focus if it
+        // has text, otherwise quietly drop it.
+        _canvas.Children.Add(tb);
+        bool committed = false;
+        tb.LostKeyboardFocus += (_, _) =>
+        {
+            if (committed) return;
+            if (string.IsNullOrEmpty(tb.Text)) _canvas.Children.Remove(tb);
+            else { committed = true; Commit(new AddOp(_canvas, tb)); }
+        };
+
+        // Focus at Input priority so it lands AFTER WPF's mouse-down default focus pass
+        // (which otherwise yanks keyboard focus straight back off the box). Set both the
+        // logical and keyboard focus so typed characters actually reach the TextBox.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
+            new Action(() => { tb.Focus(); Keyboard.Focus(tb); }));
+    }
+
+    // ---------------- paste / drop a floating image ----------------
+
+    /// <summary>Drop a floating image onto the canvas: selectable, movable, undoable, and
+    /// baked into the final render like any other annotation. center==null → canvas centre.</summary>
+    private void PlaceImage(BitmapSource src, System.Windows.Point? center = null)
+    {
+        if (src == null || src.PixelWidth < 1 || src.PixelHeight < 1) return;
+
+        double w = src.PixelWidth, h = src.PixelHeight;
+        double scale = Math.Min(1.0, Math.Min(_pw * 0.9 / w, _ph * 0.9 / h));   // fit within 90% of the canvas
+        w *= scale; h *= scale;
+
+        var img = new Image
+        {
+            Source = src, Width = w, Height = h,
+            Stretch = Stretch.Fill, IsHitTestVisible = true     // selectable (unlike the mosaic overlay)
+        };
+        var c = center ?? new System.Windows.Point(_pw / 2.0, _ph / 2.0);
+        Canvas.SetLeft(img, Math.Clamp(c.X - w / 2, 0, Math.Max(0, _pw - w)));
+        Canvas.SetTop(img, Math.Clamp(c.Y - h / 2, 0, Math.Max(0, _ph - h)));
+
+        Commit(new AddOp(_canvas, img));
+        // keep the crop dim (if any) on top, so a pasted image doesn't sit above it un-dimmed
+        if (_cropDim != null) { _canvas.Children.Remove(_cropDim); _canvas.Children.Add(_cropDim); }
+
+        SetTool(Tool.Select);
+        ShowSelection(img);
+    }
+
+    private void PasteFromClipboard()
+    {
+        try
+        {
+            var src = ImageClipboard.TryGetImage();
+            if (src == null) { Toast.Show(L.T("ed.pasteEmpty")); return; }
+            PlaceImage(src);
+            CrashLog.Telemetry("edit-paste");
+        }
+        catch (Exception ex) { CrashLog.Write("editor-paste", ex); Toast.Show(L.T("ed.pasteFail")); }
+    }
+
+    private void OnDragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        e.Effects = HasDroppableImage(e.Data) ? System.Windows.DragDropEffects.Copy
+                                              : System.Windows.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private static bool HasDroppableImage(System.Windows.IDataObject d)
+    {
+        if (d.GetDataPresent(System.Windows.DataFormats.Bitmap)) return true;
+        if (d.GetDataPresent("PNG")) return true;
+        if (d.GetDataPresent(System.Windows.DataFormats.FileDrop)
+            && d.GetData(System.Windows.DataFormats.FileDrop) is string[] fs)
+            return Array.Exists(fs, ImageClipboard.IsImagePath);
+        return false;
+    }
+
+    private void OnDrop(object sender, System.Windows.DragEventArgs e)
+    {
+        try
+        {
+            var p = e.GetPosition(_canvas);   // auto-unwinds the Viewbox scale + margin, same as OnDown
+            bool inside = p.X >= 0 && p.Y >= 0 && p.X <= _pw && p.Y <= _ph;
+            var center = inside ? p : new System.Windows.Point(_pw / 2.0, _ph / 2.0);
+
+            // (1) image files — place each, cascading slightly when several are dropped
+            if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)
+                && e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] files)
+            {
+                int placed = 0;
+                foreach (var f in files)
+                {
+                    if (!ImageClipboard.IsImagePath(f) || !File.Exists(f)) continue;
+                    var src = ImageClipboard.LoadImageFile(f);
+                    if (src == null) continue;
+                    PlaceImage(src, new System.Windows.Point(center.X + placed * 24, center.Y + placed * 24));
+                    placed++;
+                }
+                if (placed == 0) Toast.Show(L.T("ed.dropNotImage"));
+                e.Handled = true;
+                return;
+            }
+
+            // (2) raw bitmap / PNG (e.g. an image dragged out of a browser)
+            var img = ImageClipboard.FromDragData(e.Data);
+            if (img != null) { PlaceImage(img, center); e.Handled = true; return; }
+
+            Toast.Show(L.T("ed.dropNotImage"));
+        }
+        catch (Exception ex) { CrashLog.Write("editor-drop", ex); Toast.Show(L.T("ed.dropFail")); }
     }
 
     private void PlaceCounter(System.Windows.Point at)
@@ -587,7 +709,7 @@ public sealed class EditorWindow : Window
         var dot = new Grid { Width = d, Height = d };
         dot.Children.Add(new System.Windows.Shapes.Ellipse
         {
-            Fill = new SolidColorBrush(_color),
+            Fill = Frozen(_color),
             Stroke = System.Windows.Media.Brushes.White, StrokeThickness = 2
         });
         dot.Children.Add(new TextBlock
@@ -605,6 +727,11 @@ public sealed class EditorWindow : Window
 
     private static bool IsBright(System.Windows.Media.Color c)
         => (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) > 160;
+
+    /// <summary>A frozen solid brush — cheaper for short-lived annotation strokes (no
+    /// dispatcher affinity / change tracking).</summary>
+    private static SolidColorBrush Frozen(System.Windows.Media.Color c)
+    { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
     private void ApplyPixelate(System.Windows.Point a, System.Windows.Point b, bool mosaic)
     {
@@ -912,10 +1039,16 @@ public sealed class EditorWindow : Window
         if (_cropDim != null) _cropDim.Visibility = Visibility.Collapsed;  // guide only — never baked in
         _canvas.UpdateLayout();
 
-        var rtb = new RenderTargetBitmap(_pw, _ph, 96, 96, PixelFormats.Pbgra32);
-        rtb.Render(_canvas);
-
-        if (_cropDim != null) _cropDim.Visibility = Visibility.Visible;
+        RenderTargetBitmap rtb;
+        try
+        {
+            rtb = new RenderTargetBitmap(_pw, _ph, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(_canvas);
+        }
+        finally
+        {
+            if (_cropDim != null) _cropDim.Visibility = Visibility.Visible;  // restore the guide even if render throws
+        }
 
         BitmapSource final = rtb;
         if (_cropRect is { } cr && cr.Width > 1 && cr.Height > 1)

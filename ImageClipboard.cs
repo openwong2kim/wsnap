@@ -61,6 +61,77 @@ public static class ImageClipboard
         return Retry(() => System.Windows.Clipboard.SetText(text), "clip-copy-text");
     }
 
+    // ---- reading (editor paste / drag-drop) ----
+
+    /// <summary>Read an image OFF the clipboard for the editor's paste. Prefers PNG
+    /// (keeps alpha — symmetric with how we write it), then a standard bitmap, then an
+    /// image file from a FileDrop. Null when there's no image. Result is frozen.</summary>
+    public static BitmapSource? TryGetImage()
+    {
+        try
+        {
+            var img = FromDragData(System.Windows.Clipboard.GetDataObject());
+            if (img != null) return img;
+            // Final fallback: WPF's own clipboard image accessor (CF_DIB path).
+            if (System.Windows.Clipboard.ContainsImage())
+            {
+                var bs = System.Windows.Clipboard.GetImage();
+                if (bs != null) { if (bs.CanFreeze) bs.Freeze(); return bs; }
+            }
+            return null;
+        }
+        catch (Exception ex) { CrashLog.Write("clip-get-image", ex); return null; }
+    }
+
+    /// <summary>Pull a frozen image out of a clipboard- or drag-drop DataObject, trying
+    /// PNG → bitmap → image FileDrop in turn. Null if none. Shared by paste and drop.</summary>
+    public static BitmapSource? FromDragData(IDataObject? data)
+    {
+        if (data == null) return null;
+
+        // (a) PNG stream — alpha-preserving, mirrors the "PNG" format Put() writes.
+        if (data.GetDataPresent("PNG") && data.GetData("PNG") is MemoryStream ms && ms.Length > 0)
+        {
+            ms.Position = 0;
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.StreamSource = ms;
+            bi.EndInit();
+            bi.Freeze();
+            return bi;
+        }
+
+        // (b) Standard bitmap (CF_DIB / CF_BITMAP) — universal, may drop alpha.
+        if (data.GetDataPresent(System.Windows.DataFormats.Bitmap)
+            && data.GetData(System.Windows.DataFormats.Bitmap) is BitmapSource bs)
+        {
+            if (bs.CanFreeze) bs.Freeze();
+            return bs;
+        }
+
+        // (c) FileDrop — an image file copied in Explorer or dragged from disk.
+        if (data.GetDataPresent(System.Windows.DataFormats.FileDrop)
+            && data.GetData(System.Windows.DataFormats.FileDrop) is string[] files)
+        {
+            foreach (var f in files)
+                if (IsImagePath(f) && File.Exists(f))
+                    return LoadFrozen(f);
+        }
+        return null;
+    }
+
+    /// <summary>True if the path ends with one of our known image extensions.</summary>
+    public static bool IsImagePath(string f) =>
+        Array.Exists(CaptureStore.ImageExts, e => f.EndsWith(e, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Load an image file as a frozen BitmapSource (null on failure). Used by the editor's drop.</summary>
+    public static BitmapSource? LoadImageFile(string path)
+    {
+        try { return LoadFrozen(path); }
+        catch (Exception ex) { CrashLog.Write("clip-load-file", ex); return null; }
+    }
+
     // ---- internals ----
 
     private static bool Put(BitmapSource src, byte[]? png, string? filePath)

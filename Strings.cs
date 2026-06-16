@@ -245,6 +245,11 @@ public static class L
         ["ed.copyFail"]         = "Copy failed",
         ["ed.copyFailEx"]       = "Copy failed: {0}",
         ["ed.saveFailEx"]       = "Save failed: {0}",
+        ["ed.pasteEmpty"]       = "No image in clipboard",
+        ["ed.pasteFail"]        = "Paste failed",
+        ["ed.dropNotImage"]     = "Drop an image file",
+        ["ed.dropFail"]         = "Drop failed",
+        ["ed.openFail"]         = "Couldn't open the editor",
 
         // ---- history (HistoryWindow.cs) ----
         ["hist.title"]          = "wsnap — Capture History",
@@ -435,6 +440,11 @@ public static class L
         ["ed.copyFail"]         = "복사 실패",
         ["ed.copyFailEx"]       = "복사 실패: {0}",
         ["ed.saveFailEx"]       = "저장 실패: {0}",
+        ["ed.pasteEmpty"]       = "클립보드에 이미지가 없습니다",
+        ["ed.pasteFail"]        = "붙여넣기 실패",
+        ["ed.dropNotImage"]     = "이미지 파일을 드롭하세요",
+        ["ed.dropFail"]         = "드롭 실패",
+        ["ed.openFail"]         = "편집기를 열 수 없습니다",
 
         // ---- history ----
         ["hist.title"]          = "wsnap — 캡처 히스토리",
