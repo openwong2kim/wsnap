@@ -46,6 +46,11 @@ public sealed class SettingsWindow : Window
     private int _vk; private bool _shift, _ctrl, _alt, _win;
     private bool _keepHistory, _autoCopy, _postToolbar, _swallowWinS, _clipboardWatch, _telemetry, _upload, _autostart;
     private int _autoDismiss, _maxVisible;
+    private int _videoFps;
+    private string _videoAudio = "none";
+    private ComboBox? _audioCombo;
+    private Slider? _fpsSlider;
+    private TextBlock? _fpsVal;
 
     private readonly string _origLang;   // language to restore if the user cancels the preview
     private bool _applied;                // true once Save committed — suppresses the restore
@@ -101,6 +106,8 @@ public sealed class SettingsWindow : Window
         _autostart = AutoStart.IsEnabled();
         _autoDismiss = s.AutoDismissSeconds;
         _maxVisible = s.MaxVisible;
+        _videoFps = s.VideoFps;
+        _videoAudio = string.IsNullOrWhiteSpace(s.VideoAudio) ? "none" : s.VideoAudio.Trim().ToLowerInvariant();
 
         Width = 500; SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -187,6 +194,23 @@ public sealed class SettingsWindow : Window
         _imgur = Field(_imgurId, readOnly: false);
         root.Children.Add(Card(L.T("set.cardUpload"), _uploadChk, Row(L.T("set.imgurId"), _imgur, null)));
 
+        // --- video recording ---
+        _fpsSlider = MakeSlider(8, 30, _videoFps);
+        _fpsVal = new TextBlock { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Foreground = Theme.Brush("Muted"), MinWidth = 36 };
+        _fpsSlider.ValueChanged += (_, _) => _fpsVal!.Text = ((int)_fpsSlider.Value).ToString();
+        _fpsVal.Text = ((int)_fpsSlider.Value).ToString();
+        _audioCombo = new ComboBox { Style = Theme.Style("Combo"), Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        // Fixed order; the selected index maps back to a code in SyncFromUi().
+        string[] audioCodes = { "none", "mic", "system", "both" };
+        string[] audioLabels = { L.T("set.audioNone"), L.T("set.audioMic"), L.T("set.audioSystem"), L.T("set.audioBoth") };
+        int audioSel = Array.IndexOf(audioCodes, _videoAudio);
+        for (int i = 0; i < audioLabels.Length; i++) _audioCombo.Items.Add(audioLabels[i]);
+        _audioCombo.SelectedIndex = audioSel < 0 ? 0 : audioSel;
+        root.Children.Add(Card(L.T("set.cardVideo"),
+            SliderRow(L.T("set.videoFps"), _fpsSlider, _fpsVal),
+            Row(L.T("set.videoAudio"), _audioCombo, null),
+            Hint(L.T("set.audioHint"))));
+
         // --- actions ---
         var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         actions.Children.Add(Btn(L.T("set.cancel"), Close, primary: false));
@@ -215,6 +239,13 @@ public sealed class SettingsWindow : Window
         if (_uploadChk != null) _upload = _uploadChk.IsChecked == true;
         if (_fade != null) _autoDismiss = (int)_fade.Value;
         if (_max != null) _maxVisible = (int)_max.Value;
+        if (_fpsSlider != null) _videoFps = (int)_fpsSlider.Value;
+        if (_audioCombo != null)
+        {
+            string[] codes = { "none", "mic", "system", "both" };
+            int idx = _audioCombo.SelectedIndex;
+            _videoAudio = idx >= 0 && idx < codes.Length ? codes[idx] : "none";
+        }
     }
 
     /// <summary>Restore the original UI language if the user closes without saving the preview.</summary>
@@ -329,6 +360,8 @@ public sealed class SettingsWindow : Window
         s.TelemetryOptIn = _telemetry;
         s.UploadEnabled = _upload;
         s.ImgurClientId = _imgurId.Trim();
+        s.VideoFps = _videoFps;
+        s.VideoAudio = _videoAudio;
 
         AutoStart.Set(_autostart);
         s.StartWithWindows = _autostart;

@@ -3,6 +3,54 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.6.0] - 2026-06-26
+
+### Added
+- **Region video recording (MP4 + APNG).** wsnap could record a region as a looping GIF; it
+  can now also record real video. Pick **Record Video (Region)** from the tray and choose:
+  - **MP4 (H.264)** — a small, universally-playable `.mp4` (yuv420p, faststart).
+  - **APNG (Animated PNG)** — a lossless, full-colour RGBA looping `.apng` (effectively a
+    lossless GIF). APNG has no 256-colour limit and supports alpha, so it beats GIF on
+    anything with gradients, text, or transparency.
+  The thumbnail works for both: an MP4 gets an auto-extracted first-frame poster (H.264 has
+  no image decoder); an APNG is itself a valid PNG so WPF shows frame 1 directly. Drag the
+  thumbnail to hand off the file; Edit/OCR are hidden for video (they're image-only), and a
+  plain click copies the path.
+- **On-device ffmpeg resolution.** Video encodes through a bundled-or-resolved ffmpeg
+  (found on PATH, or downloaded on demand to `%LOCALAPPDATA%\wsnap\ffmpeg` — the same
+  pattern as the OCR language packs, so the single-file exe stays lean). This deliberately
+  avoids the Media Foundation SinkWriter path, which needs `mfplat.dll` and is absent on
+  Windows N / stripped images (the reason the earlier H.264 prototype was deferred). ffmpeg
+  is environment-agnostic and works everywhere; when it can't be found, video recording
+  falls back to GIF so the capture is never lost.
+- **Audio for video.** MP4 recording can now include sound — microphone (dshow), system audio
+  (wasapi loopback, when the ffmpeg build supports it), or both — selected under Settings →
+  Video recording. APNG stays silent (it's an animated image). Unavailable sources are skipped
+  so the recording still succeeds.
+
+### Notes
+- Audio capture needs a microphone (dshow) and/or a wasapi-enabled ffmpeg for system audio.
+  When a chosen source can't be resolved, recording still succeeds as video-only.
+
+### Added (continued)
+- **Update checker.** wsnap now compares its version against the latest GitHub Release in the
+  background after startup, and on demand from the tray ("Check for updates"). When a newer
+  version exists it surfaces a toast + a tray entry linking to the release. It deliberately
+  does NOT silently swap the binary (auto-replacing an unsigned exe is a security smell); full
+  silent self-update activates after code signing.
+- **Scroll capture v2.** The overlap matcher now uses a two-component row signature (brightness
+  + chroma) so equal-brightness rows no longer collide, and a confidence gate rejects
+  low-overlap matches (smooth-scroll lag, parallax) instead of forcing a noisy shift. When
+  content can't be aligned the result is a shorter but clean image rather than a garbled one.
+
+### Changed
+- New **Settings → Video recording** card: frame rate and audio source (None / Mic / System /
+  Mic+system). Video is silent by default; pick a source to record sound with MP4.
+- Version bumped to 1.6.0.
+
+[1.6.0]: https://github.com/openwong2kim/wsnap/releases/tag/v1.6.0
+[1.5.1]: https://github.com/openwong2kim/wsnap/releases/tag/v1.5.1
+
 ## [1.5.1] - 2026-06-03
 
 ### Changed

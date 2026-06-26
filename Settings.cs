@@ -70,6 +70,10 @@ public sealed class Settings
     public bool ClipboardWatch { get; set; } = false;       // v1.1: thumbnail anything copied as an image
     public bool TelemetryOptIn { get; set; } = false;       // opt-in only; local log unless a sink is set
 
+    /// <summary>Check for a newer GitHub release on startup (background, opt-out). Default on.
+    /// Never silently swaps the binary; surfaces a tray entry + toast linking to the release.</summary>
+    public bool UpdateCheck { get; set; } = true;
+
     // ---- Hotkey (default Shift+F1) ----
     public int HotkeyVk { get; set; } = 0x70;               // F1
     public bool HotkeyShift { get; set; } = true;
@@ -87,6 +91,13 @@ public sealed class Settings
     // ---- Video recording (H.264/MP4 via ffmpeg) ----
     /// <summary>Region video capture framerate. Clamped 1–60 at use. Default 24.</summary>
     public int VideoFps { get; set; } = 24;
+
+    /// <summary>Audio source for MP4 recording: "none" | "mic" | "system" | "both".
+    /// APNG cannot carry audio (it's an animated image), so this only affects MP4. Default none (silent).</summary>
+    public string VideoAudio { get; set; } = "none";
+
+    /// <summary>Optional explicit dshow microphone device name. Blank → auto-pick the first mic.</summary>
+    public string VideoMicDevice { get; set; } = "";
 
     /// <summary>Optional explicit path to ffmpeg.exe. Blank → resolve PATH then on-demand download.</summary>
     public string FFmpegPath { get; set; } = "";

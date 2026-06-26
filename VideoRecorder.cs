@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -115,6 +116,40 @@ public sealed class VideoRecorder
         psi.ArgumentList.Add("-r"); psi.ArgumentList.Add(_fps.ToStringInvariant());
         psi.ArgumentList.Add("-i"); psi.ArgumentList.Add("pipe:0");
 
+        // Resolve audio inputs (MP4 only — APNG is an animated image and can't carry audio).
+        // Each requested source that can't be resolved (e.g. "system" with no wasapi/stereo-mix)
+        // is silently dropped, so recording still succeeds as video-only.
+        var audio = new List<(string fmt, string arg)>();
+        string src = (Settings.Current.VideoAudio ?? "none").Trim().ToLowerInvariant();
+        if (_format == VideoFormat.Mp4 && (src == "mic" || src == "both"))
+        {
+            var mic = AudioDevices.ResolveMic();
+            if (mic != null) audio.Add(("dshow", $"audio={mic}"));
+        }
+        if (_format == VideoFormat.Mp4 && (src == "system" || src == "both"))
+        {
+            var sys = AudioDevices.ResolveSystem();
+            if (sys != null) audio.Add(sys.Value);
+        }
+        foreach (var (aFmt, aArg) in audio)
+        {
+            psi.ArgumentList.Add("-f"); psi.ArgumentList.Add(aFmt);
+            psi.ArgumentList.Add("-i"); psi.ArgumentList.Add(aArg);
+        }
+
+        // Map the video stream (input 0); audio mapping depends on how many sources resolved.
+        psi.ArgumentList.Add("-map"); psi.ArgumentList.Add("0:v:0");
+        if (audio.Count == 1)
+        {
+            psi.ArgumentList.Add("-map"); psi.ArgumentList.Add("1:a:0");
+        }
+        else if (audio.Count >= 2)
+        {
+            psi.ArgumentList.Add("-filter_complex");
+            psi.ArgumentList.Add("[1:a][2:a]amix=inputs=2:duration=longest[aout]");
+            psi.ArgumentList.Add("-map"); psi.ArgumentList.Add("[aout]");
+        }
+
         if (_format == VideoFormat.Apng)
         {
             // Lossless full-colour RGBA animated PNG, looping forever.
@@ -128,8 +163,18 @@ public sealed class VideoRecorder
             psi.ArgumentList.Add("-crf"); psi.ArgumentList.Add("23");
             psi.ArgumentList.Add("-pix_fmt"); psi.ArgumentList.Add("yuv420p");
             psi.ArgumentList.Add("-movflags"); psi.ArgumentList.Add("+faststart");
+            if (audio.Count > 0)
+            {
+                // -shortest: end the output when the video (stdin) closes — the user stops recording.
+                psi.ArgumentList.Add("-c:a"); psi.ArgumentList.Add("aac");
+                psi.ArgumentList.Add("-b:a"); psi.ArgumentList.Add("128k");
+                psi.ArgumentList.Add("-shortest");
+            }
         }
         psi.ArgumentList.Add(_outPath);
+
+        if (_format == VideoFormat.Mp4 && src != "none" && audio.Count == 0)
+            Toast.Show(L.T("vid.audioUnavailable"), 2600);
 
         try { _ffmpeg = Process.Start(psi); }
         catch (Exception ex)

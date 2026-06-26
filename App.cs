@@ -15,6 +15,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using WinForms = System.Windows.Forms;
@@ -29,6 +30,7 @@ public partial class App : System.Windows.Application
     private WinForms.NotifyIcon? _tray;
     private ClipboardWatcher? _clipboard;
     private DispatcherTimer? _idleTrim;
+    private UpdateInfo? _update;
 
     [STAThread]
     public static void Main()
@@ -79,6 +81,48 @@ public partial class App : System.Windows.Application
             CrashLog.Telemetry("startup");
 
         StartMemoryTrimming();
+        ScheduleUpdateCheck();
+    }
+
+    /// <summary>Background update check ~20s after startup (deferred so it never adds to launch
+    /// latency or the initial memory spike), if the user hasn't disabled it. The manual tray
+    /// "check for updates" runs regardless of this setting.</summary>
+    private void ScheduleUpdateCheck()
+    {
+        var t = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(20) };
+        t.Tick += (_, _) => { t.Stop(); _ = CheckForUpdateAsync(manual: false); };
+        t.Start();
+    }
+
+    private async Task CheckForUpdateAsync(bool manual)
+    {
+        try
+        {
+            var info = await UpdateChecker.CheckAsync();
+            if (info == null) { if (manual) Toast.Show(L.T("toast.updateCheckFailed"), 2600); return; }
+            if (!UpdateChecker.IsNewer(info.Version, UpdateChecker.CurrentVersion))
+            {
+                if (manual) Toast.Show(L.T("toast.upToDate", UpdateChecker.CurrentVersion), 2600);
+                return;
+            }
+            _update = info;
+            _ = Dispatcher.BeginInvoke(new Action(() =>
+            {
+                RebuildTrayMenu();
+                Toast.Show(L.T("toast.updateAvailable", info.Version), 3200);
+            }));
+        }
+        catch (Exception ex) { CrashLog.Write("update-check", ex); if (manual) Toast.Show(L.T("toast.updateCheckFailed"), 2600); }
+    }
+
+    /// <summary>Open the latest release page (or installer asset) in the default browser.</summary>
+    private void OpenUpdate()
+    {
+        var url = _update?.InstallerUrl;
+        if (string.IsNullOrEmpty(url)) url = _update?.ReleaseUrl;
+        if (string.IsNullOrEmpty(url)) return;
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch (Exception ex) { CrashLog.Write("update-open", ex); }
     }
 
     /// <summary>
@@ -148,9 +192,23 @@ public partial class App : System.Windows.Application
         menu.Items.Add(L.T("tray.history"), null, (_, _) => HistoryWindow.ShowSingleton());
         menu.Items.Add(L.T("tray.clearThumbs"), null, (_, _) => ThumbnailWindow.ClearAll());
         menu.Items.Add(L.T("tray.settings"), null, (_, _) => SettingsWindow.ShowSingleton(ApplyRuntime));
+        if (_update != null)
+            menu.Items.Add(L.T("tray.updateAvailable", _update.Version), null, (_, _) => OpenUpdate());
+        else
+            menu.Items.Add(L.T("tray.checkUpdate"), null, (_, _) => _ = CheckForUpdateAsync(manual: true));
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add(L.T("tray.exit"), null, (_, _) => Shutdown());
         return menu;
+    }
+
+    /// <summary>Rebuild the tray menu in place (used after a language change and when an update
+    /// becomes available, so the "new version" entry appears without a restart).</summary>
+    private void RebuildTrayMenu()
+    {
+        if (_tray == null) return;
+        var old = _tray.ContextMenuStrip;
+        _tray.ContextMenuStrip = BuildTrayMenu();
+        old?.Dispose();
     }
 
     /// <summary>Load the bundled app icon (embedded so it works inside the single-file exe).</summary>

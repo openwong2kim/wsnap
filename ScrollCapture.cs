@@ -25,10 +25,13 @@ using System.Windows.Media;
 namespace Wsnap;
 
 /// <summary>
-/// v1.1 scroll capture (best-effort). Picks a region, programmatically wheel-scrolls
-/// the window under it, grabs frames, and stitches them by detecting vertical overlap
-/// between consecutive frames. Works well for text/web; fragile on smooth-scrolling or
-/// parallax content — stops automatically when no new content appears.
+/// Scroll capture (best-effort). Picks a region, programmatically wheel-scrolls the window
+/// under it, grabs frames, and stitches them by detecting vertical overlap between consecutive
+/// frames. v2 hardening: a two-component row signature (brightness + chroma) so equal-brightness
+/// rows no longer collide, and a confidence gate that rejects low-overlap matches (smooth-scroll
+/// lag, parallax) instead of forcing a noisy shift that corrupts the stitch — so when content
+/// can't be aligned, the result is a shorter but clean image rather than a garbled one. Still
+/// best for text/web; stops automatically when no new content appears.
 /// </summary>
 public sealed class ScrollCapture
 {
@@ -56,7 +59,7 @@ public sealed class ScrollCapture
         SetCursorPos(cx, cy);
         await Task.Delay(200);
 
-        int[]? prevSig = null;
+        RowSig[]? prevSig = null;
         int totalH = 0, noProgress = 0;
 
         try
@@ -64,7 +67,7 @@ public sealed class ScrollCapture
             for (int step = 0; step < MaxSteps && !_stop; step++)
             {
                 using var frame = ScreenGrab.Grab(_r.X, _r.Y, _r.Width, _r.Height);
-                int[] sig = RowSignature(frame);
+                RowSig[] sig = RowSignature(frame);
 
                 if (prevSig == null)
                 {
@@ -73,8 +76,10 @@ public sealed class ScrollCapture
                 }
                 else
                 {
-                    int shift = BestShift(prevSig, sig);
-                    if (shift < 3) { if (++noProgress >= 2) break; }
+                    var (shift, residual) = BestShift(prevSig, sig);
+                    // Reject low-confidence overlaps (smooth-scroll lag / parallax / no movement)
+                    // instead of forcing a noisy shift that would corrupt the stitch.
+                    if (shift < 3 || residual > 0.12) { if (++noProgress >= 2) break; }
                     else
                     {
                         noProgress = 0;
@@ -117,11 +122,20 @@ public sealed class ScrollCapture
         finally { foreach (var s in _strips) s.Dispose(); _strips.Clear(); }
     }
 
-    /// <summary>Per-row brightness signature (sampled columns) for overlap matching.</summary>
-    private static int[] RowSignature(Bitmap bmp)
+    private readonly struct RowSig
+    {
+        public readonly int Br;
+        public readonly int Cv;
+        public RowSig(int br, int cv) { Br = br; Cv = cv; }
+    }
+
+    /// <summary>Per-row signature: total brightness <em>and</em> a colour-variance term, so two
+    /// rows with identical brightness but different content no longer collide (the v1 single-sum
+    /// signature matched such rows as equal, corrupting the overlap estimate).</summary>
+    private static RowSig[] RowSignature(Bitmap bmp)
     {
         int h = bmp.Height, w = bmp.Width;
-        var sig = new int[h];
+        var sig = new RowSig[h];
         var data = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         try
         {
@@ -133,10 +147,14 @@ public sealed class ScrollCapture
                 for (int y = 0; y < h; y++)
                 {
                     byte* row = basePtr + y * stride;
-                    int sum = 0;
+                    int br = 0, cv = 0;
                     for (int x = 0; x < w * 4; x += step)
-                        sum += row[x] + row[x + 1] + row[x + 2];
-                    sig[y] = sum;
+                    {
+                        byte b = row[x], g = row[x + 1], r = row[x + 2];
+                        br += r + g + b;
+                        cv += Math.Abs(r - g) + Math.Abs(g - b);   // chroma spread
+                    }
+                    sig[y] = new RowSig(br, cv);
                 }
             }
         }
@@ -145,23 +163,29 @@ public sealed class ScrollCapture
     }
 
     /// <summary>Find vertical scroll amount: prev[y] ≈ new[y-shift] over the overlap.</summary>
-    private static int BestShift(int[] prev, int[] cur)
+    private static (int shift, double residual) BestShift(RowSig[] prev, RowSig[] cur)
     {
         int h = prev.Length;
         int maxShift = (2 * h) / 3;          // keep a meaningful overlap
-        long best = long.MaxValue; int bestShift = 0;
+        double best = double.MaxValue; int bestShift = 0;
+        double meanSig = 0;                  // average |signal| for normalization
+        for (int y = 0; y < h; y++) meanSig += Math.Abs(prev[y].Br) + Math.Abs(prev[y].Cv);
+        meanSig /= Math.Max(1, h);
+
         for (int s = 0; s <= maxShift; s++)
         {
             long cost = 0; int n = h - s;
             for (int y = s; y < h; y++)
             {
-                int d = prev[y] - cur[y - s];
-                cost += d < 0 ? -d : d;
+                int dbr = prev[y].Br - cur[y - s].Br;
+                int dcv = prev[y].Cv - cur[y - s].Cv;
+                cost += (dbr < 0 ? -dbr : dbr) + (dcv < 0 ? -dcv : dcv);
             }
-            cost = cost / Math.Max(1, n);
-            if (cost < best) { best = cost; bestShift = s; }
+            double normCost = cost / (double)Math.Max(1, n);
+            if (normCost < best) { best = normCost; bestShift = s; }
         }
-        return bestShift;
+        double residual = meanSig > 0 ? best / meanSig : (best > 0 ? 1 : 0);
+        return (bestShift, residual);
     }
 
     private void ShowControl()

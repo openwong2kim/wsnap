@@ -84,6 +84,33 @@
 - ✅ **OCR 엔진을 PaddleOCR PP-OCRv5(ONNX·RapidOcrNet)로 교체** — 내장 `Windows.Media.Ocr`이 한·영 혼합을 깨뜨리던 문제 해결(`프로토콜`→`하오토콜` 등). 한글 rec 모델을 exe에 동봉(언어팩 불필요), lazy 로드 + idle 해제로 v1.2.4 상주 메모리 보존, 헤드리스 `.smoke/ocr`로 정확도 검증 — v1.3.0 `Ocr.cs`
 - ✅ **제3자 라이선스 고지 동봉** (`THIRD-PARTY-NOTICES.md` — 번들 의존성 전부 permissive·GPL-3.0 호환; 인스톨러 + 포터블 zip에 포함) — v1.3.1
 
+## v1.4–v1.5 — i18n & 다언어 OCR ✅
+- ✅ **UI 다국어**(Strings.cs + locales/*.json, 13개 언어) + 언어 드롭다운 실시간 미리보기 — v1.4/1.5
+- ✅ **OCR 다언어 팩**(PP-OCRv5 라틴/중국/키릴/그리스/아랍 등 온디바이스, 선택 시 다운로드) — v1.5
+
+## v1.6 — 영상 녹화 + 오디오 + 업데이트 + 스크롤 v2 ✅
+- ✅ **영역 영상 녹화** — ffmpeg stdin BGRA 파이프로 인코딩(`VideoRecorder.cs`), Media Foundation SinkWriter 경로(mfplat 부재로 검증 불가) 우회 — v1.6.0
+- ✅ **MP4(H.264/yuv420p/faststart)** + **APNG(무손실 rgba 루프)** 트레이 서브메뉴 선택
+- ✅ **ffmpeg 해석**(`FFmpegProvider.cs`) — PATH → app-local → 온디바이스 다운로드(OCR 팩 패턴). 미가용 시 GIF 폴백
+- ✅ **영상용 썸네일**(`ThumbnailWindow.cs`) — MP4는 첫 프레임 poster PNG 추출, APNG는 PNG 그대로 디코딩; 영상엔 편집/OCR 숨김
+- ✅ **영상 오디오**(`AudioDevices.cs`) — 마이크(dshow) / 시스템(wasapi 루프백, 런타임 탐지) / 둘 다. APNG는 무음. 설정 카드
+- ✅ **자동 업데이트 체커**(`UpdateChecker.cs`) — GitHub Releases 버전 비교 + 트레이/토스트 알림(미서명 앱이므로 무해화 대신 안내). 서명 후 전체 silent 전환
+- ✅ **스크롤 캡처 v2**(`ScrollCapture.cs`) — 밝기+색차 2성분 행 지문 + 신뢰도 게이트(저신뢰 매칭 거부)로 시접 부패 방지
+
+---
+
+## 전방향 로드맵 (다음 우선순위)
+
+### Phase C — 차별화 심화 (프라이버시 AI)
+- 🔲 오프라인 번역 / 표·코드 블록 구조화 추출 / 자동 파일명·태그 제안
+- 🔲 스마트 레드랙(이메일/전화/계좌 자동 감지 → 모자이크 제안)
+- 🔲 용도별 단축키 프로파일(개발/디자인/문서)
+
+### Phase D — 장기
+- 🔲 코드 서명(SignPath 무료) 활성화 → silent 자동업데이트·SmartScreen 제거
+- 🔲 접근성(고대비/스크린리더) · 엔터프라이즈 정책(GPO 배포)
+- 🔲 에디터/캡처 코어 라이브러리화, 플랫폼 확장 검토
+
 ---
 
 ## 남은 사람 몫 (코드 외)
