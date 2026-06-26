@@ -56,6 +56,7 @@ public sealed class ThumbnailWindow : Window
     private IntPtr _hwnd;
 
     private string _filePath;
+    private readonly bool _isVideo;
     private readonly Image _img;
     private readonly Border _actionBar;
     private readonly Border _root;
@@ -65,9 +66,10 @@ public sealed class ThumbnailWindow : Window
     private System.Windows.Point _dragStart, _flingStart;
     private bool _maybeDrag, _maybeFling, _closing, _pinned;
 
-    public ThumbnailWindow(string filePath, bool edited = false)
+    public ThumbnailWindow(string filePath, bool edited = false, string? poster = null)
     {
         _filePath = filePath;
+        _isVideo = poster != null;
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -78,7 +80,7 @@ public sealed class ThumbnailWindow : Window
         Width = 220;
         Height = 158;
 
-        _img = new Image { Source = LoadFrozen(filePath), Stretch = Stretch.Uniform, IsHitTestVisible = false };
+        _img = new Image { Source = LoadFrozen(poster ?? filePath), Stretch = Stretch.Uniform, IsHitTestVisible = false };
 
         _actionBar = BuildActionBar();
 
@@ -167,8 +169,12 @@ public sealed class ThumbnailWindow : Window
 
         bar.Children.Add(IconBtn("copy", L.T("thumb.copy"), CopyImage));
         bar.Children.Add(IconBtn("save", L.T("thumb.saveAs"), SaveAs));
-        bar.Children.Add(IconBtn("edit", L.T("thumb.edit"), EditCurrent));
-        bar.Children.Add(IconBtn("text", L.T("thumb.ocr"), OcrCurrent));
+        // Edit + OCR are image-only — not meaningful for a video thumbnail.
+        if (!_isVideo)
+        {
+            bar.Children.Add(IconBtn("edit", L.T("thumb.edit"), EditCurrent));
+            bar.Children.Add(IconBtn("text", L.T("thumb.ocr"), OcrCurrent));
+        }
         bar.Children.Add(IconBtn("folder", L.T("thumb.reveal"), Reveal));
         if (Uploader.Available)
             bar.Children.Add(IconBtn("share", L.T("thumb.share"), ShareCurrent));
@@ -410,6 +416,8 @@ public sealed class ThumbnailWindow : Window
 
     private void CopyImage()
     {
+        // A video has no image to put on the clipboard; plain click copies the mp4 path instead.
+        if (_isVideo) { ImageClipboard.CopyText(_filePath); Toast.Show(L.T("thumb.pathCopied")); return; }
         if (ImageClipboard.CopyImageFile(_filePath)) Toast.Show(L.T("toast.imageCopied"));
         else Toast.Show(L.T("thumb.copyFail"));
     }

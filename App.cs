@@ -138,6 +138,10 @@ public partial class App : System.Windows.Application
         menu.Items.Add(L.T("tray.ocr"), null, (_, _) => StartOcrCapture());
         menu.Items.Add(L.T("tray.colorPick"), null, (_, _) => StartColorPick());
         menu.Items.Add(L.T("tray.gif"), null, (_, _) => StartGifCapture());
+        var video = new WinForms.ToolStripMenuItem(L.T("tray.video"));
+        video.DropDownItems.Add(L.T("tray.videoMp4"), null, (_, _) => StartVideoCapture(VideoFormat.Mp4));
+        video.DropDownItems.Add(L.T("tray.videoApng"), null, (_, _) => StartVideoCapture(VideoFormat.Apng));
+        menu.Items.Add(video);
         menu.Items.Add(L.T("tray.scroll"), null, (_, _) => StartScrollCapture());
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add(L.T("tray.openFolder"), null, (_, _) => OpenCaptureFolder());
@@ -309,6 +313,34 @@ public partial class App : System.Windows.Application
             _overlayOpen = false;
             if (overlay.RegionPx is { } r && r.Width > 1 && r.Height > 1)
                 new GifRecorder(r, path => { new ThumbnailWindow(path).Show(); ScheduleTrim(); }).Start();
+        };
+        overlay.Show();
+        overlay.Activate();
+    }
+
+    /// <summary>Region video recording. <see cref="VideoFormat.Mp4"/> = H.264 (small, video),
+    /// <see cref="VideoFormat.Apng"/> = lossless animated PNG ("PNG video"). Falls back to GIF
+    /// when ffmpeg can't be resolved, so the user always gets a result from the same action.</summary>
+    private void StartVideoCapture(VideoFormat format)
+    {
+        if (_overlayOpen) return;
+        _overlayOpen = true;
+        var overlay = new CaptureOverlay(CaptureMode.Region);
+        overlay.Closed += (_, _) =>
+        {
+            _overlayOpen = false;
+            if (overlay.RegionPx is not { } r || r.Width <= 1 || r.Height <= 1) return;
+
+            if (VideoRecorder.IsAvailable)
+            {
+                new VideoRecorder(r, (path, poster) => { new ThumbnailWindow(path, poster: poster).Show(); ScheduleTrim(); }, format).Start();
+            }
+            else
+            {
+                // ffmpeg missing (and no download triggered yet): degrade to GIF so the capture isn't lost.
+                Toast.Show(L.T("vid.ffmpegFallback"));
+                new GifRecorder(r, path => { new ThumbnailWindow(path).Show(); ScheduleTrim(); }).Start();
+            }
         };
         overlay.Show();
         overlay.Activate();

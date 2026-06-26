@@ -293,6 +293,18 @@ public static class L
         ["gif.encoding"]        = "Encoding GIF…",
         ["gif.saveFail"]        = "Failed to save GIF",
 
+        // ---- video recorder (VideoRecorder.cs) ----
+        ["tray.video"]          = "Record Video (Region)",
+        ["tray.videoMp4"]       = "MP4 (H.264)",
+        ["tray.videoApng"]      = "APNG (Animated PNG)",
+        ["vid.recording"]       = "● Recording · {0} frames · stop (click/Esc)",
+        ["vid.recording0"]      = "● Recording · 0 frames · stop (click/Esc)",
+        ["vid.canceled"]        = "Recording canceled",
+        ["vid.encoding"]        = "Encoding video…",
+        ["vid.saveFail"]        = "Failed to save video",
+        ["vid.ffmpegMissing"]   = "ffmpeg not found — falling back to GIF",
+        ["vid.ffmpegFallback"]  = "ffmpeg unavailable — recorded GIF instead",
+
         // ---- scroll capture (ScrollCapture.cs) ----
         ["scroll.canceled"]     = "Scrolling capture canceled",
         ["scroll.saveFail"]     = "Failed to save scrolling capture",
@@ -487,6 +499,18 @@ public static class L
         ["gif.canceled"]        = "녹화 취소됨",
         ["gif.encoding"]        = "GIF 인코딩 중…",
         ["gif.saveFail"]        = "GIF 저장 실패",
+
+        // ---- video recorder ----
+        ["tray.video"]          = "영상 녹화 (영역)",
+        ["tray.videoMp4"]       = "MP4 (H.264)",
+        ["tray.videoApng"]      = "APNG (PNG 영상)",
+        ["vid.recording"]       = "● 녹화 중 · {0} 프레임 · 중지(클릭/Esc)",
+        ["vid.recording0"]      = "● 녹화 중 · 0 프레임 · 중지(클릭/Esc)",
+        ["vid.canceled"]        = "녹화 취소됨",
+        ["vid.encoding"]        = "영상 인코딩 중…",
+        ["vid.saveFail"]        = "영상 저장 실패",
+        ["vid.ffmpegMissing"]   = "ffmpeg를 찾을 수 없음 — GIF로 대체",
+        ["vid.ffmpegFallback"]  = "ffmpeg 사용 불가 — GIF로 녹화함",
 
         // ---- scroll capture ----
         ["scroll.canceled"]     = "스크롤 캡처 취소됨",

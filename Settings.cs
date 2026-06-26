@@ -84,6 +84,13 @@ public sealed class Settings
     public bool UploadEnabled { get; set; } = false;
     public string ImgurClientId { get; set; } = "";         // user supplies their own; empty = disabled
 
+    // ---- Video recording (H.264/MP4 via ffmpeg) ----
+    /// <summary>Region video capture framerate. Clamped 1–60 at use. Default 24.</summary>
+    public int VideoFps { get; set; } = 24;
+
+    /// <summary>Optional explicit path to ffmpeg.exe. Blank → resolve PATH then on-demand download.</summary>
+    public string FFmpegPath { get; set; } = "";
+
     [JsonIgnore]
     public string HotkeyText
     {
