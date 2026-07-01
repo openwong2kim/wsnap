@@ -127,8 +127,11 @@ public partial class App : System.Windows.Application
 
     /// <summary>
     /// Keep the resident (tray) footprint small. Once startup/JIT settles, do one compacting
-    /// trim to release the warm-up allocations, then empty the working set on an idle timer so
-    /// the process sits at tens of MB instead of holding onto everything it ever touched.
+    /// trim to release the warm-up allocations. Then a SINGLE-SHOT idle timer empties the
+    /// working set once the process has sat untouched for a while — reset on every capture so a
+    /// busy session never fires it. EmptyWorkingSet pages the whole process (JIT code + WPF
+    /// internals) out, so firing it on a short repeating timer punished the very next hotkey
+    /// press with a hard page-fault storm; deferring it to genuine long idle avoids that.
     /// </summary>
     private void StartMemoryTrimming()
     {
@@ -139,14 +142,25 @@ public partial class App : System.Windows.Application
             warmup.Start();
         });
 
-        _idleTrim = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(45) };
-        _idleTrim.Tick += (_, _) => MemoryTrim.TrimWorkingSet();
+        _idleTrim = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(5) };
+        _idleTrim.Tick += (_, _) => { _idleTrim!.Stop(); MemoryTrim.TrimWorkingSet(); };
         _idleTrim.Start();
+    }
+
+    /// <summary>Push the one-shot idle working-set trim back out to a full interval from now.
+    /// Called on any capture activity so a frequently-used session keeps its pages resident and
+    /// never pays EmptyWorkingSet's page-fault cost right before the next interaction.</summary>
+    private void ResetIdleTrim()
+    {
+        if (_idleTrim == null) return;
+        _idleTrim.Stop();
+        _idleTrim.Start();   // Stop+Start restarts the countdown from now
     }
 
     /// <summary>After a capture's transient bitmaps are gone, reclaim + return the memory.</summary>
     private void ScheduleTrim()
     {
+        ResetIdleTrim();
         var t = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1.5) };
         t.Tick += (_, _) => { t.Stop(); MemoryTrim.TrimNow(); };
         t.Start();
@@ -250,6 +264,7 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
+        ResetIdleTrim();   // active use — keep the process resident so the overlay opens instantly
         var ctx = ForegroundContext();   // BEFORE the overlay freezes/steals focus
         var overlay = new CaptureOverlay(CaptureMode.Capture) { NameCtx = ctx };
         overlay.Closed += (_, _) => { _overlayOpen = false; RouteCapture(overlay); };
@@ -340,6 +355,9 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
+        // Active use — reset the one-shot idle trim so a long GIF/video/scroll recording started
+        // from here never has EmptyWorkingSet fire mid-capture and page-fault away recording frames.
+        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.OcrText);
         overlay.Closed += (_, _) =>
         {
@@ -355,6 +373,7 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
+        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.ColorPick);
         overlay.Closed += (_, _) => _overlayOpen = false;
         overlay.Show();
@@ -365,6 +384,7 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
+        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.Region);
         overlay.Closed += (_, _) =>
         {
@@ -383,6 +403,7 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
+        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.Region);
         overlay.Closed += (_, _) =>
         {
@@ -408,6 +429,7 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
+        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.Region);
         overlay.Closed += (_, _) =>
         {

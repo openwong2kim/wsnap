@@ -66,14 +66,7 @@ public sealed class Toast : Window
     private void ShowSelf()
     {
         Show();
-        // Place in physical pixels on the cursor's monitor — SystemParameters.WorkArea is
-        // primary-monitor-only and misplaces the toast (taskbar clash) on multi-monitor /
-        // mixed-DPI desktops. SizeToContent leaves DIU sizes, so scale them to device px.
-        var (wa, s) = MonitorPlacement.CursorWorkArea();
-        double wPx = ActualWidth * s;
-        double hPx = ActualHeight * s;
-        MonitorPlacement.MovePx(new WindowInteropHelper(this).Handle,
-            wa.Right - wPx - 24 * s, wa.Bottom - hPx - 24 * s);
+        PlaceSelf();
 
         Opacity = 0;
         BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120)));
@@ -87,5 +80,31 @@ public sealed class Toast : Window
             BeginAnimation(OpacityProperty, fade);
         };
         timer.Start();
+    }
+
+    /// <summary>
+    /// Place the toast bottom-right on the cursor's monitor in physical pixels — SystemParameters
+    /// .WorkArea is primary-monitor-only and misplaces the toast (taskbar clash) on multi-monitor /
+    /// mixed-DPI desktops. SizeToContent leaves DIU sizes, so scale them to device px.
+    /// </summary>
+    private void PlaceSelf()
+    {
+        var (wa, s) = MonitorPlacement.CursorWorkArea();
+        double wPx = ActualWidth * s;
+        double hPx = ActualHeight * s;
+        MonitorPlacement.MovePx(new WindowInteropHelper(this).Handle,
+            wa.Right - wPx - 24 * s, wa.Bottom - hPx - 24 * s);
+    }
+
+    /// <summary>
+    /// Re-assert the bottom-right placement after a DPI change. MovePx positions the HWND in
+    /// device pixels; crossing a monitor DPI boundary raises WM_DPICHANGED, whose WPF DEFAULT
+    /// handler re-applies the OS-suggested rect and overrides our placement. ActualWidth/Height
+    /// stay in DIP across the change, so recomputing with the fresh scale lands it correctly.
+    /// </summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(PlaceSelf));
     }
 }
