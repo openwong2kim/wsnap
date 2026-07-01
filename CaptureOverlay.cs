@@ -562,6 +562,13 @@ public sealed class CaptureOverlay : Window
                 if (cur.X >= win.R.Left && cur.X < win.R.Right && cur.Y >= win.R.Top && cur.Y < win.R.Bottom)
                 { hit = win.H; hr = win.R; if (!string.IsNullOrEmpty(win.Title)) title = win.Title; break; }
 
+        // Nothing to redo if the hovered window is unchanged (or we're still over nothing): the
+        // window list is frozen when the overlay opens so its rect/label can't shift under us,
+        // and the highlight, punch-through hole and label were already set on the transition
+        // tick. Bailing here avoids rewriting _holeGeo every render tick, which would otherwise
+        // re-invalidate the full-virtual-desktop dim Path even while the cursor sits still.
+        if (hit == _hovered) return;
+
         if (hit == IntPtr.Zero)
         {
             _hovered = IntPtr.Zero;

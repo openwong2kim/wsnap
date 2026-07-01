@@ -23,17 +23,20 @@ namespace Wsnap;
 /// and the CLR holds onto that committed memory long after. These helpers return it to the
 /// OS so Task Manager shows tens of MB at idle instead of hundreds.
 ///
-///  - <see cref="TrimNow"/> does a compacting GC (reclaims/​defragments the LOH where capture
-///    bitmaps live) and then empties the working set — call it after a capture or edit closes.
-///  - <see cref="TrimWorkingSet"/> only empties the working set (cheap, no GC pause) — call it
-///    on an idle timer to keep the resident set low without churning the heap.
-///
-/// EmptyWorkingSet pages the working set out; pages fault back in on demand, so the only cost
-/// is a tiny latency on the next interaction — fine for a background tray app.
+///  - <see cref="TrimNow"/> does a compacting GC ONLY — it reclaims/​defragments the LOH where
+///    capture bitmaps live, and a compacting collection already returns the freed LOH segments
+///    to the OS. Call it after a capture or edit closes. It deliberately does NOT purge the
+///    working set (see below).
+///  - <see cref="TrimWorkingSet"/> empties the working set (EmptyWorkingSet), which pages the
+///    WHOLE process out — JIT-compiled code and WPF internals included. Those pages fault back
+///    in on demand, so the NEXT interaction (e.g. the capture hotkey after idling) pays a hard
+///    page-fault storm before the overlay can even appear. That trades a smaller idle-RAM
+///    number for first-interaction latency, so call it sparingly: once after a long idle, never
+///    on a short repeating timer.
 /// </summary>
 internal static class MemoryTrim
 {
-    /// <summary>Compacting GC + working-set trim. Use after a memory-heavy operation finishes.</summary>
+    /// <summary>Compacting GC only (no working-set purge). Use after a memory-heavy operation finishes.</summary>
     public static void TrimNow()
     {
         try
@@ -44,10 +47,10 @@ internal static class MemoryTrim
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
         }
         catch { /* GC tuning is best-effort */ }
-        TrimWorkingSet();
     }
 
-    /// <summary>Empty the process working set (no GC). Cheap enough for an idle timer.</summary>
+    /// <summary>Empty the process working set (no GC). Costs a page-fault storm on the next
+    /// interaction, so reserve it for a one-shot long-idle trim — never a short repeating timer.</summary>
     public static void TrimWorkingSet()
     {
         try { EmptyWorkingSet(GetCurrentProcess()); }

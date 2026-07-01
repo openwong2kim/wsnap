@@ -328,6 +328,22 @@ public sealed class ThumbnailWindow : Window
         Reflow();
     }
 
+    /// <summary>
+    /// Re-assert our physical-pixel placement after a DPI change. Reflow moves the HWND onto
+    /// the target monitor via SetWindowPos (device px); when that move crosses a monitor DPI
+    /// boundary Windows raises WM_DPICHANGED, and WPF's DEFAULT handler answers it by applying
+    /// the OS-SUGGESTED rect — silently overriding our placement and leaving the thumbnail
+    /// misplaced or clipped. Nothing else re-asserts, so we do it here. Reflow is static and
+    /// idempotent: once the window already sits on the target monitor at the settled DPI,
+    /// re-applying the same physical rect crosses no further boundary, so this converges
+    /// rather than ping-ponging. Background priority lets the DPI change fully settle first.
+    /// </summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(Reflow));
+    }
+
     /// <summary>Tray-menu "전체 지우기".</summary>
     public static void ClearAll()
     {
