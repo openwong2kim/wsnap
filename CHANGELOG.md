@@ -3,7 +3,7 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
-## [1.6.0] - 2026-06-26
+## [1.6.0] - 2026-07-02
 
 ### Added
 - **Region video recording (MP4 + APNG).** wsnap could record a region as a looping GIF; it
@@ -47,6 +47,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [S
 - New **Settings → Video recording** card: frame rate and audio source (None / Mic / System /
   Mic+system). Video is silent by default; pick a source to record sound with MP4.
 - Version bumped to 1.6.0.
+
+### Fixed
+- **No lag opening the capture overlay after the app sits idle.** A background timer emptied the
+  process working set every 45 seconds, paging wsnap's own code out; the next hotkey press then
+  paid a hard page-fault storm before the region overlay could appear. The working-set trim now
+  fires once after a genuine long idle and resets on every capture, so an active session stays
+  instant. (`TrimNow` also no longer purges the working set — it keeps only its compacting GC.)
+- **Thumbnail no longer clips or lands in the wrong place on mixed-DPI multi-monitor setups.** The
+  bottom-right thumbnail is placed in physical pixels; crossing a monitor DPI boundary let
+  Windows' default handling override that placement, so it could render truncated or off to the
+  side. It now re-asserts its position after a DPI change (the tray toast had the same latent
+  issue and is fixed too).
+- **Smoother region selection.** The window-hover highlight no longer re-invalidates the full
+  dimmed backdrop on every mouse-move tick, and freezing the desktop on overlay open now copies
+  the screen once instead of twice.
 
 [1.6.0]: https://github.com/openwong2kim/wsnap/releases/tag/v1.6.0
 [1.5.1]: https://github.com/openwong2kim/wsnap/releases/tag/v1.5.1
