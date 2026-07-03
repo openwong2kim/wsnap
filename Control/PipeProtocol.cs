@@ -192,6 +192,9 @@ public static class PipeProtocol
             Height = r.Height == 0 ? null : r.Height,
             Bytes = r.Bytes == 0 ? null : r.Bytes,
             Copied = r.Copied ? true : null,
+            // 콘텐츠 게이팅 신호: Path/Width/Height는 redaction 후에도 살아남으므로(경로는 콘텐츠 아님)
+            // 이 플래그를 반드시 보존해야 클라(MCP/CLI)가 이미지·텍스트 방출을 억제한다. 유실 시 게이팅 우회.
+            ContentRedacted = r.ContentRedacted ? true : null,
             App = r.App,
             Title = r.Title,
             Text = r.Text,
@@ -227,6 +230,7 @@ public static class PipeProtocol
             Height = dto.Height ?? 0,
             Bytes = dto.Bytes ?? 0,
             Copied = dto.Copied ?? false,
+            ContentRedacted = dto.ContentRedacted ?? false,
             App = dto.App,
             Title = dto.Title,
             Text = dto.Text,
@@ -256,6 +260,7 @@ public static class PipeProtocol
         public int? Height { get; init; }
         public long? Bytes { get; init; }
         public bool? Copied { get; init; }
+        public bool? ContentRedacted { get; init; }
         public string? App { get; init; }
         public string? Title { get; init; }
         public string? Text { get; init; }

@@ -177,9 +177,11 @@ public static class CommandTraits
     public static bool HasPresentation(CommandKind k) => k is
         CommandKind.CaptureRegion or CommandKind.CaptureFullScreen or CommandKind.CaptureWindow;
 
-    /// <summary>결과가 화면 픽셀/OCR 텍스트/색을 호출자에게 되돌려주는가(ControlGate 2등급 콘텐츠 반환).</summary>
+    /// <summary>결과가 화면 픽셀/OCR 텍스트/색을 호출자에게 되돌려주는가(ControlGate 2등급 콘텐츠 반환).
+    /// CaptureRepeat는 LastRegion을 다시 캡처해 픽셀을 되돌려주므로 반드시 게이트 대상에 포함한다.</summary>
     public static bool ReturnsContent(CommandKind k) => k is
         CommandKind.CaptureRegion or CommandKind.CaptureFullScreen or CommandKind.CaptureWindow or
+        CommandKind.CaptureRepeat or
         CommandKind.OcrRegion or CommandKind.OcrImage or CommandKind.OcrLast or
         CommandKind.ColorAt or CommandKind.HistoryGet or CommandKind.Gif or CommandKind.Video;
 

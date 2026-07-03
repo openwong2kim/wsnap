@@ -426,6 +426,9 @@ public sealed class SettingsWindow : Window
         s.PostCaptureToolbar = _postToolbar;
         s.HotkeyVk = _vk; s.HotkeyShift = _shift; s.HotkeyCtrl = _ctrl; s.HotkeyAlt = _alt; s.HotkeyWin = _win;
         s.SwallowWinShiftS = _swallowWinS;
+        // The hotkey card edits only the legacy fields above; fold them into the multi-binding list
+        // that HotkeyHook reads so the new chord actually takes effect (Codex P2).
+        Settings.SyncPrimaryHotkeyFromLegacy();
         s.ClipboardWatch = _clipboardWatch;
         s.TelemetryOptIn = _telemetry;
         s.UploadEnabled = _upload;

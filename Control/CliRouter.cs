@@ -360,6 +360,9 @@ public static class CliRouter
                 if (!r.Ok) return Fail(r, json);
 
                 string? outv = cli.Get("out");
+                // 보안(P1): 저장본 픽셀 반출(--out -/<path>)도 콘텐츠 게이팅 대상. capture와 동일 방어.
+                if (r.ContentRedacted && !string.IsNullOrEmpty(outv))
+                    return RefuseRedactedExport(r, json);
                 if (outv == "-")
                 {
                     WritePngToStdout(r.Path);
@@ -372,7 +375,7 @@ public static class CliRouter
                     catch (Exception ex) { ConsoleBridge.ErrLine("wsnap: " + ex.Message); return 1; }
                     return 0;
                 }
-                if (json) WriteJsonLine(w => { w.WriteBoolean("ok", true); w.WriteString("path", r.Path); });
+                if (json) WriteJsonLine(w => { w.WriteBoolean("ok", true); w.WriteString("path", r.Path); if (r.ContentRedacted) w.WriteBoolean("content_redacted", true); });
                 else ConsoleBridge.OutLine(r.Path ?? "");
                 return 0;
             }
@@ -485,9 +488,18 @@ public static class CliRouter
         if (!r.Ok) return Fail(r, json);
 
         string? outv = cli.Get("out");
+        bool wantsStdout    = outv == "-";
+        bool wantsFileCopy  = !string.IsNullOrEmpty(outv) && !string.Equals(outv, "clipboard", StringComparison.OrdinalIgnoreCase);
+        bool wantsClipboard = string.Equals(outv, "clipboard", StringComparison.OrdinalIgnoreCase) || cli.Has("copy");
+
+        // 보안(P1): ExternalControlAllowReturnContent가 off면 게이트가 콘텐츠를 가린다(ContentRedacted).
+        // 캡처 파일은 앱 자체 폴더에 저장돼 r.Path는 살아있지만, CLI 호출자가 그 픽셀을 반출(stdout/파일/
+        // 클립보드)하는 것은 막아야 한다. McpStdioServer의 !ContentRedacted 이미지 가드와 동일한 방어.
+        if (r.ContentRedacted && (wantsStdout || wantsFileCopy || wantsClipboard))
+            return RefuseRedactedExport(r, json);
 
         // 원시 PNG 바이트를 stdout으로. stdout을 바이너리로 깨끗이 유지하려 텍스트는 전부 stderr.
-        if (outv == "-")
+        if (wantsStdout)
         {
             WritePngToStdout(r.Path);
             if (json) EmitCaptureJson(r, r.Path, toStderr: true);
@@ -496,7 +508,7 @@ public static class CliRouter
         }
 
         string? savedPath = r.Path;
-        if (!string.IsNullOrEmpty(outv) && !string.Equals(outv, "clipboard", StringComparison.OrdinalIgnoreCase))
+        if (wantsFileCopy)
         {
             try { savedPath = CopyTo(r.Path!, outv!); }
             catch (Exception ex)
@@ -512,6 +524,29 @@ public static class CliRouter
         return 0;
     }
 
+    /// <summary>콘텐츠 반환이 게이트로 차단된 상태(ContentRedacted): 캡처/저장본은 로컬에 있지만 CLI가 그
+    /// 픽셀을 stdout/파일/클립보드로 반출하는 것은 거부한다. 위치(path)는 알리되 바이트는 막고 exit 1.</summary>
+    private static int RefuseRedactedExport(CommandResult r, bool json)
+    {
+        const string msg = "content return is disabled (enable ExternalControlAllowReturnContent in settings)";
+        if (json)
+            WriteJsonLine(w =>
+            {
+                w.WriteBoolean("ok", true);
+                w.WriteBoolean("content_redacted", true);
+                if (!string.IsNullOrEmpty(r.Path)) w.WriteString("path", r.Path);
+                w.WriteNumber("width", r.Width);
+                w.WriteNumber("height", r.Height);
+                w.WriteString("message", msg);
+            });
+        else
+        {
+            ConsoleBridge.ErrLine("wsnap: " + msg);
+            if (!string.IsNullOrEmpty(r.Path)) ConsoleBridge.ErrLine("saved (not exported): " + r.Path);
+        }
+        return 1;
+    }
+
     private static void EmitCaptureJson(CommandResult r, string? path, bool toStderr) =>
         WriteJsonLine(w =>
         {
@@ -523,12 +558,14 @@ public static class CliRouter
             if (!string.IsNullOrEmpty(r.Title)) w.WriteString("title", r.Title);
             if (r.Bytes > 0) w.WriteNumber("bytes", r.Bytes);
             w.WriteBoolean("copied", r.Copied);
+            if (r.ContentRedacted) w.WriteBoolean("content_redacted", true);
         }, toStderr);
 
     private static string CaptureSummary(CommandResult r, string? path) =>
-        r.Copied
+        (r.Copied
             ? $"Copied to clipboard ({r.Width}x{r.Height})"
-            : $"Saved {path ?? r.Path} ({r.Width}x{r.Height})";
+            : $"Saved {path ?? r.Path} ({r.Width}x{r.Height})")
+        + (r.ContentRedacted ? " [content redacted]" : "");
 
     private static int EmitRecording(CommandResult r, bool json)
     {

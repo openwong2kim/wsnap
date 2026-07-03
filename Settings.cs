@@ -213,6 +213,67 @@ public sealed class Settings
         try { Directory.CreateDirectory(Current.SaveFolder); } catch { }
     }
 
+    /// <summary>
+    /// Fold the legacy single-hotkey fields (<see cref="HotkeyVk"/> etc. + <see cref="SwallowWinShiftS"/>)
+    /// back into the <see cref="Hotkeys"/> multi-binding list that <see cref="HotkeyHook"/> actually reads.
+    /// The settings window edits only the legacy fields; without this the primary "capture.interactive"
+    /// binding (and the Win+Shift+S swallow) keep firing the pre-edit chord after the one-time
+    /// <see cref="Load"/> migration. User-added custom bindings are preserved untouched. Mirrors the
+    /// Load() migration and swaps in a fresh list so the hook's live index walk stays safe.
+    /// </summary>
+    public static void SyncPrimaryHotkeyFromLegacy()
+    {
+        var src = Current.Hotkeys;
+        var next = new System.Collections.Generic.List<HotkeyBinding>(src.Count + 1);
+        bool primaryDone = false;
+
+        for (int i = 0; i < src.Count; i++)
+        {
+            var b = src[i];
+
+            // Drop the managed Win+Shift+S swallow binding; it's re-added below per SwallowWinShiftS.
+            if (IsManagedWinShiftS(b)) continue;
+
+            // Retarget the first default-capture binding to the current chord, keeping its other props.
+            if (!primaryDone && b.Command == "capture.interactive")
+            {
+                next.Add(new HotkeyBinding
+                {
+                    Vk = Current.HotkeyVk, Shift = Current.HotkeyShift, Ctrl = Current.HotkeyCtrl,
+                    Alt = Current.HotkeyAlt, Win = Current.HotkeyWin,
+                    Command = b.Command, Args = b.Args, Swallow = b.Swallow, Enabled = b.Enabled
+                });
+                primaryDone = true;
+                continue;
+            }
+
+            next.Add(b);   // preserve custom bindings verbatim
+        }
+
+        // No default-capture binding was present → create one from the legacy chord (as Load() does).
+        if (!primaryDone)
+            next.Add(new HotkeyBinding
+            {
+                Vk = Current.HotkeyVk, Shift = Current.HotkeyShift, Ctrl = Current.HotkeyCtrl,
+                Alt = Current.HotkeyAlt, Win = Current.HotkeyWin,
+                Command = "capture.interactive", Swallow = true
+            });
+
+        // Re-add the Win+Shift+S swallow to match the current toggle (same signature Load() uses).
+        if (Current.SwallowWinShiftS)
+            next.Add(new HotkeyBinding
+            {
+                Vk = 0x53 /* S */, Shift = true, Win = true,
+                Command = "capture.interactive", Swallow = true
+            });
+
+        Current.Hotkeys = next;   // atomic swap — safe against HotkeyHook's live index walk
+    }
+
+    /// <summary>The Win+Shift+S → interactive-capture chord that <see cref="SwallowWinShiftS"/> manages.</summary>
+    private static bool IsManagedWinShiftS(HotkeyBinding b) =>
+        b.Vk == 0x53 && b.Shift && b.Win && !b.Ctrl && !b.Alt && b.Command == "capture.interactive";
+
     public void Save()
     {
         try
