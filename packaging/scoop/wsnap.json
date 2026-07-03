@@ -1,11 +1,11 @@
 {
-    "version": "1.6.0",
+    "version": "1.7.0",
     "description": "macOS-style screen capture for Windows — capture, floating thumbnail, drag-and-drop as a real file. Offline KO/EN OCR (PaddleOCR), GIF, scroll capture built in.",
     "homepage": "https://github.com/openwong2kim/wsnap",
     "license": "GPL-3.0-only",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/openwong2kim/wsnap/releases/download/v1.6.0/wsnap.exe",
+            "url": "https://github.com/openwong2kim/wsnap/releases/download/v1.7.0/wsnap.exe",
             "hash": "d0c2cf77f973c6fa4d38081f6c24906e3eef2b7c277238008cba0b2e5b9fe181"
         }
     },

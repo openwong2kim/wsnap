@@ -19,10 +19,11 @@ namespace Wsnap;
 
 /// <summary>
 /// Global low-level keyboard hook (WH_KEYBOARD_LL).
-/// Fires the capture flow on the user-configured hotkey (default Shift+F1) and,
-/// optionally, on Win+Shift+S (swallowing it to replace the OS Snipping Tool).
-/// Modifiers/keys are read live from <see cref="Settings.Current"/>, so rebinding
-/// in the settings window takes effect without reinstalling the hook.
+/// Matches each keystroke against <see cref="Settings.Hotkeys"/> (the multi-binding list) and
+/// raises <see cref="Triggered"/> with the binding that fired, so its command can be dispatched.
+/// Bindings are read live from <see cref="Settings.Current"/>, so editing them in the settings
+/// window takes effect without reinstalling the hook. A binding with
+/// <see cref="HotkeyBinding.Swallow"/> set consumes the chord (e.g. to replace Win+Shift+S).
 /// </summary>
 public sealed class HotkeyHook : IDisposable
 {
@@ -32,14 +33,14 @@ public sealed class HotkeyHook : IDisposable
 
     private const int VK_SHIFT = 0x10, VK_CTRL = 0x11, VK_ALT = 0x12;
     private const int VK_LWIN = 0x5B, VK_RWIN = 0x5C;
-    private const int VK_S = 0x53;
 
     private readonly LowLevelKeyboardProc _proc;
     private IntPtr _hookId = IntPtr.Zero;
     private bool _installFailed;
 
-    /// <summary>Raised on a captured trigger. Handler should start the capture flow.</summary>
-    public event Action? CaptureRequested;
+    /// <summary>Raised when a keystroke matches an enabled binding, carrying that binding so the
+    /// handler can dispatch its <see cref="HotkeyBinding.Command"/>. Marshalled to the UI dispatcher.</summary>
+    public event Action<HotkeyBinding>? Triggered;
 
     /// <summary>True if the OS refused the hook (e.g. blocked by security software).</summary>
     public bool InstallFailed => _installFailed;
@@ -66,27 +67,29 @@ public sealed class HotkeyHook : IDisposable
         if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN))
         {
             int vk = Marshal.ReadInt32(lParam);
-            var s = Settings.Current;
 
             bool shift = Down(VK_SHIFT);
             bool ctrl  = Down(VK_CTRL);
-            bool alt    = Down(VK_ALT);
-            bool win    = Down(VK_LWIN) || Down(VK_RWIN);
+            bool alt   = Down(VK_ALT);
+            bool win   = Down(VK_LWIN) || Down(VK_RWIN);
 
-            bool configured =
-                vk == s.HotkeyVk &&
-                shift == s.HotkeyShift &&
-                ctrl == s.HotkeyCtrl &&
-                alt == s.HotkeyAlt &&
-                win == s.HotkeyWin;
-
-            bool winShiftS = s.SwallowWinShiftS && win && shift && vk == VK_S;
-
-            if (configured || winShiftS)
+            // Hot path: this runs on EVERY system-wide keystroke. Snapshot the list reference once,
+            // walk it by index, and compare only ints/bools — no LINQ, no foreach enumerator, no
+            // closures or string work until a binding actually matches (rare, user-initiated).
+            var list = Settings.Current.Hotkeys;
+            for (int i = 0; i < list.Count; i++)
             {
-                System.Windows.Application.Current?.Dispatcher.BeginInvoke(
-                    () => CaptureRequested?.Invoke());
-                return (IntPtr)1; // swallow
+                var b = list[i];
+                if (vk == b.Vk && shift == b.Shift && ctrl == b.Ctrl &&
+                    alt == b.Alt && win == b.Win && b.Enabled)
+                {
+                    // Defer off the hook (BeginInvoke): a low-level hook must return fast, and the
+                    // handler opens windows / runs the command. Capturing b here is fine — cold path.
+                    System.Windows.Application.Current?.Dispatcher.BeginInvoke(
+                        () => Triggered?.Invoke(b));
+                    if (b.Swallow) return (IntPtr)1; // consume the chord (e.g. replaces Win+Shift+S)
+                    break;                           // fired, but let the keystroke pass through
+                }
             }
         }
         return CallNextHookEx(_hookId, nCode, wParam, lParam);

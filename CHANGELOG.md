@@ -3,6 +3,65 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.7.0] - 2026-07-03
+
+wsnap becomes controllable — by you from the command line, and by AI agents through MCP —
+without giving up its offline, no-account, privacy-first identity. A new command layer lets
+Claude (or any script) drive capture, OCR, colour, GIF, and history, all behind a single
+security gate that stays **off until you turn it on**.
+
+### Added
+- **Command-line interface (`wsnap <verb>`).** Drive wsnap from a terminal or a script: capture a
+  region / full screen / window, OCR a region or an image file, read a pixel's colour, record a
+  GIF, and query capture history — with `--json` for machine-readable output and pipe-friendly
+  `--out -` streaming. Headless commands run without the tray; interactive ones delegate to the
+  running instance so history, clipboard, and thumbnails stay consistent.
+- **MCP server (`wsnap mcp`) — control wsnap from Claude Desktop and Claude Code.** wsnap now
+  speaks the Model Context Protocol over local stdio, so an AI agent can take a screenshot, read
+  text off the screen, sample a colour, record a short GIF, or pull up a past capture — as real
+  tools, on demand. Register it with `claude mcp add wsnap -- wsnap mcp` (or the Claude Desktop
+  config snippet). Everything wsnap already does well — pixel-precise region capture across
+  mixed-DPI monitors, accurate on-device KO/EN OCR — is what the agent gets, and nothing leaves
+  your machine.
+- **Multiple hotkey bindings.** The single global hotkey became a list: bind as many chords as you
+  like, each to its own command (interactive capture, repeat last region, OCR last, delayed
+  capture, colour pick, …), each with its own swallow behaviour. Existing single-hotkey configs
+  (and the optional Win+Shift+S interception) migrate automatically, so nothing changes for you
+  unless you add more.
+- **Automation: watch-folder OCR and clipboard auto-OCR.** Point wsnap at a folder and any image
+  dropped into it is auto-OCR'd — the text lands on your clipboard and beside the image as a
+  `.txt` sidecar. Optionally, any image copied to the clipboard is OCR'd the same way. Both are
+  opt-in and run entirely on-device.
+
+### Security & privacy
+- **One command bus, one gate.** Every command — from the tray, a hotkey, the CLI, or MCP — flows
+  through a single **ControlGate** that enforces consent, visibility, rate limits, and
+  content-return policy at the one place pixels are actually read. Physical, user-initiated
+  triggers (hotkey, tray) keep their exact existing behaviour; only external (CLI / MCP) sources
+  are policed.
+- **External control is OFF by default.** While it is off, the local control pipe server is never
+  even created — no listener, no attack surface. Turn it on in Settings, and the **first** external
+  connection asks for your consent before anything is captured.
+- **Local only, never the network.** MCP is local stdio; the CLI/agent control channel is a Windows
+  named pipe restricted to your own user account (session-local DACL). There is **no network
+  listener**, by design and enforced in code — an agent on another machine cannot reach wsnap.
+- **Visible by default, with an audit trail.** Every externally-initiated capture raises a visible
+  signal (shutter / toast, plus a tray badge while an external session is active) and appends a
+  line to `%APPDATA%\wsnap\audit.log`. The audit log records **metadata only** — time, source,
+  command, size, allow/deny — and never the OCR text, image bytes, or window titles. GIF recording
+  always shows a red recording badge that doubles as a one-click kill-switch.
+- **Returning content is a separate, second opt-in.** Handing captured pixels or OCR text back to
+  an external caller (the real exfiltration channel) is gated independently and off by default;
+  when it's disallowed, results are redacted before they leave. Per-source rate limits cap bursts.
+  wsnap does **not** claim to defend against malware already running as you (the OS can screenshot
+  anyway) — the goal is to never be the quieter, easier tool for it, and to make every AI capture
+  consensual and visible.
+
+### Changed
+- Version bumped to 1.7.0.
+
+[1.7.0]: https://github.com/openwong2kim/wsnap/releases/tag/v1.7.0
+
 ## [1.6.0] - 2026-07-02
 
 ### Added
