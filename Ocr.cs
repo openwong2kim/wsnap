@@ -82,8 +82,14 @@ public static class Ocr
         return Languages[0];   // korean (embedded)
     }
 
-    /// <summary>Recognise text in a bitmap. Returns "" if nothing found, null if OCR is unavailable.</summary>
-    public static async Task<string?> RecognizeAsync(Bitmap bmp)
+    /// <summary>Recognise text in a bitmap using the configured OCR language. Returns "" if
+    /// nothing found, null if OCR is unavailable.</summary>
+    public static Task<string?> RecognizeAsync(Bitmap bmp) => RecognizeAsync(bmp, null);
+
+    /// <summary>Recognise text with an explicit language pack (null = the configured
+    /// <see cref="CurrentLanguage"/>). Lets CLI/MCP callers pass a per-call --lang without
+    /// mutating the persisted setting. Returns "" if nothing found, null if OCR is unavailable.</summary>
+    public static async Task<string?> RecognizeAsync(Bitmap bmp, OcrLanguage? langOverride)
     {
         try
         {
@@ -98,7 +104,7 @@ public static class Ocr
                 png = ms.ToArray();
             }
 
-            OcrLanguage lang = CurrentLanguage;        // read on the UI thread, used below
+            OcrLanguage lang = langOverride ?? CurrentLanguage;   // per-call override or configured default
 
             // ONNX inference is synchronous and CPU-bound — keep it off the UI thread.
             return await Task.Run(() =>

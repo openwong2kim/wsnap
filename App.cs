@@ -12,6 +12,7 @@
 // Public License along with this program. If not, see
 // <https://www.gnu.org/licenses/>.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -32,9 +33,39 @@ public partial class App : System.Windows.Application
     private DispatcherTimer? _idleTrim;
     private UpdateInfo? _update;
 
+    // Control layer (v1.7): the tray instance hosts one shared bus + gate; the pipe server is
+    // created only when the user opts into external control. See App.Control.cs for IResidentHost.
+    private Wsnap.Control.ControlGate? _gate;
+    private Wsnap.Control.CommandRouter? _router;
+    private Wsnap.Control.PipeServer? _pipe;
+    private FolderWatcher? _folderWatcher;
+
     [STAThread]
-    public static void Main()
+    public static void Main(string[] args)
     {
+        // ---- client sub-commands run WITHOUT the WPF/tray app ----
+        // `wsnap mcp` = stdio MCP server; `wsnap <verb>` = CLI. Both delegate to the running tray
+        // instance over the control pipe when it's up, else run headless in-proc. This branch MUST
+        // come before SingleInstance/Settings so a client invocation has no tray side effects.
+        if (args.Length > 0)
+        {
+            if (string.Equals(args[0], "mcp", StringComparison.OrdinalIgnoreCase))
+            {
+                Settings.Load();
+                Wsnap.Control.McpStdioServer.RunAsync(BuildClientRouter()).GetAwaiter().GetResult();
+                return;
+            }
+            if (Wsnap.Control.CliRouter.IsKnownVerb(args[0]))
+            {
+                Settings.Load();
+                Wsnap.Control.ConsoleBridge.Bind();
+                int code = Wsnap.Control.CliRouter.Run(args, BuildClientRouter()).GetAwaiter().GetResult();
+                Wsnap.Control.ConsoleBridge.Unbind();
+                Environment.Exit(code);
+                return;
+            }
+        }
+
         var app = new App();
         _instance = app;
 
@@ -58,6 +89,16 @@ public partial class App : System.Windows.Application
         SingleInstance.Release();
     }
 
+    /// <summary>The router a CLI/MCP client process uses: delegate to the running tray instance over
+    /// the control pipe when present; otherwise a headless in-proc router (interactive/recording
+    /// commands then return resident_required since there's no tray host).</summary>
+    private static Wsnap.Control.ICommandRouter BuildClientRouter()
+    {
+        if (Wsnap.Control.PipeClientRouter.IsResidentRunning())
+            return new Wsnap.Control.PipeClientRouter();
+        return new Wsnap.Control.CommandRouter(new Wsnap.Control.ControlGate(), host: null);
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -66,12 +107,24 @@ public partial class App : System.Windows.Application
         // One design system, merged once so every window inherits the dark identity.
         Resources.MergedDictionaries.Add(Theme.Dict);
 
+        // Control layer: this tray instance is the resident host, so hotkey / tray / pipe / MCP all
+        // share ONE CommandRouter + ONE ControlGate (single consent/rate-limit choke point).
+        _gate = new Wsnap.Control.ControlGate();
+        _router = new Wsnap.Control.CommandRouter(_gate, this);
+        _gate.ScreenAccessSignalled += OnExternalScreenAccess;
+
         _hook = new HotkeyHook();
-        _hook.CaptureRequested += StartCapture;
+        _hook.Triggered += OnHotkey;
         _hook.Install();
 
-        _clipboard = new ClipboardWatcher(path => new ThumbnailWindow(path).Show());
+        _clipboard = new ClipboardWatcher(OnClipboardImage);
         _clipboard.SetEnabled(Settings.Current.ClipboardWatch);
+
+        _folderWatcher = new FolderWatcher();
+        _folderWatcher.SetEnabled(Settings.Current.WatchFolderOcr);
+
+        // The control pipe listener exists ONLY when the user opted in — off = zero attack surface.
+        if (Settings.Current.ExternalControlEnabled) StartPipeServer();
 
         SetupTray();
 
@@ -82,6 +135,70 @@ public partial class App : System.Windows.Application
 
         StartMemoryTrimming();
         ScheduleUpdateCheck();
+    }
+
+    private void StartPipeServer()
+    {
+        try { _pipe = new Wsnap.Control.PipeServer(_router!); _pipe.Start(); }
+        catch (Exception ex) { CrashLog.Write("pipe-start", ex); }
+    }
+
+    private DispatcherTimer? _badgeTimer;
+
+    /// <summary>Badge the tray tooltip for a few seconds when an external caller (CLI/MCP/pipe)
+    /// touches the screen — a lingering visibility signal on top of the one-shot toast. (GIF
+    /// recording additionally shows its own red badge for the whole clip.)</summary>
+    private void OnExternalScreenAccess(Wsnap.Control.WsnapCommand cmd)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_tray == null) return;
+            string s = $"wsnap — external control active ({cmd.Source})";
+            _tray.Text = s.Length <= 63 ? s : s.Substring(0, 60) + "...";   // NotifyIcon.Text caps at 63
+            _badgeTimer?.Stop();
+            _badgeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
+            _badgeTimer.Tick += (_, _) => { _badgeTimer!.Stop(); if (_tray != null) _tray.Text = L.T("tray.tip", Settings.Current.HotkeyText); };
+            _badgeTimer.Start();
+        });
+    }
+
+    /// <summary>A hotkey binding fired: dispatch its command through the bus, same path as CLI/MCP.
+    /// Unknown command id falls back to the classic region capture so a broken binding still shoots.</summary>
+    private void OnHotkey(HotkeyBinding b)
+    {
+        try
+        {
+            if (!Wsnap.Control.CommandCatalog.TryParseId(b.Command, out var kind)) { StartCapture(); return; }
+            System.Text.Json.JsonElement? args = null;
+            if (b.Args is { Count: > 0 })
+            {
+                var dict = new Dictionary<string, object?>(b.Args.Count);
+                foreach (var kv in b.Args) dict[kv.Key] = kv.Value;
+                args = Wsnap.Control.ArgReader.Obj(dict);
+            }
+            _ = _router!.ExecuteAsync(new Wsnap.Control.WsnapCommand(kind, args, Wsnap.Control.CommandSource.Hotkey));
+        }
+        catch (Exception ex) { CrashLog.Write("hotkey-dispatch", ex); StartCapture(); }
+    }
+
+    /// <summary>Clipboard image detected: pop a thumbnail, and (opt-in) auto-OCR it to the clipboard.</summary>
+    private void OnClipboardImage(string path)
+    {
+        new ThumbnailWindow(path).Show();
+        if (Settings.Current.ClipboardAutoOcr) _ = AutoOcrToClipboard(path);
+    }
+
+    private async Task AutoOcrToClipboard(string path)
+    {
+        try
+        {
+            var res = await _router!.ExecuteAsync(new Wsnap.Control.WsnapCommand(
+                Wsnap.Control.CommandKind.OcrImage,
+                Wsnap.Control.ArgReader.Obj(new Dictionary<string, object?> { ["path"] = path }),
+                Wsnap.Control.CommandSource.Internal));
+            if (res.Ok && !string.IsNullOrEmpty(res.Text)) { ImageClipboard.CopyText(res.Text!); Toast.Show(L.T("toast.textCopied")); }
+        }
+        catch (Exception ex) { CrashLog.Write("clip-auto-ocr", ex); }
     }
 
     /// <summary>Background update check ~20s after startup (deferred so it never adds to launch
@@ -247,6 +364,12 @@ public partial class App : System.Windows.Application
     private void ApplyRuntime()
     {
         _clipboard?.SetEnabled(Settings.Current.ClipboardWatch);
+        _folderWatcher?.SetEnabled(Settings.Current.WatchFolderOcr);
+
+        // External-control toggled in settings: bring the pipe listener into line at runtime.
+        if (Settings.Current.ExternalControlEnabled && _pipe == null) StartPipeServer();
+        else if (!Settings.Current.ExternalControlEnabled && _pipe != null) { try { _pipe.Dispose(); } catch { } _pipe = null; }
+
         if (_tray != null)
         {
             // Rebuild the whole menu so a language change re-localizes every item (and the
@@ -511,6 +634,8 @@ public partial class App : System.Windows.Application
     {
         _hook?.Dispose();
         _clipboard?.Dispose();
+        _folderWatcher?.Dispose();
+        _pipe?.Dispose();
         if (_tray != null) { _tray.Visible = false; _tray.Dispose(); }
         base.OnExit(e);
     }

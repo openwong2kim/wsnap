@@ -6,7 +6,7 @@
 
 #define AppName "wsnap"
 #ifndef AppVersion
-  #define AppVersion "1.0.2"
+  #define AppVersion "1.7.0"
 #endif
 #define AppExe "wsnap.exe"
 

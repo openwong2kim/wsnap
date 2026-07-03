@@ -51,6 +51,10 @@ public sealed class SettingsWindow : Window
     private ComboBox? _audioCombo;
     private Slider? _fpsSlider;
     private TextBlock? _fpsVal;
+    // external control + automation (v1.7)
+    private bool _extEnabled, _extReturnContent, _extSilent, _clipboardAutoOcr, _watchFolderOcr, _allowShell;
+    private int _extRateLimit;
+    private string _watchFolderPath = "";
 
     private readonly string _origLang;   // language to restore if the user cancels the preview
     private bool _applied;                // true once Save committed — suppresses the restore
@@ -62,6 +66,10 @@ public sealed class SettingsWindow : Window
     private CheckBox? _historyChk, _autocopyChk, _toolbarChk, _swallowChk, _autostartChk, _clipboardChk, _telemetryChk, _uploadChk;
     private Slider? _fade, _max;
     private TextBlock? _fadeVal, _hotkeyLabel;
+    // external control + automation controls (recreated on every BuildContent)
+    private CheckBox? _extEnabledChk, _extReturnContentChk, _extSilentChk, _clipOcrChk, _watchOcrChk, _allowShellChk;
+    private Slider? _extRate;
+    private TextBox? _watchFolderBox;
     private ComboBox? _langCombo;   // current language combo (rebuild swaps it); also a smoke-test seam
     private readonly List<ToggleButton> _ocrLangButtons = new();
     private readonly HashSet<string> _ocrInstalling = new();   // OCR codes downloading now — survives a rebuild
@@ -108,6 +116,14 @@ public sealed class SettingsWindow : Window
         _maxVisible = s.MaxVisible;
         _videoFps = s.VideoFps;
         _videoAudio = string.IsNullOrWhiteSpace(s.VideoAudio) ? "none" : s.VideoAudio.Trim().ToLowerInvariant();
+        _extEnabled = s.ExternalControlEnabled;
+        _extReturnContent = s.ExternalControlAllowReturnContent;
+        _extSilent = s.ExternalControlAllowSilent;
+        _extRateLimit = s.ExternalControlRateLimitPerMin;
+        _clipboardAutoOcr = s.ClipboardAutoOcr;
+        _watchFolderOcr = s.WatchFolderOcr;
+        _watchFolderPath = s.WatchFolderPath ?? "";
+        _allowShell = s.AllowShellCommands;
 
         Width = 500; SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -211,6 +227,37 @@ public sealed class SettingsWindow : Window
             Row(L.T("set.videoAudio"), _audioCombo, null),
             Hint(L.T("set.audioHint"))));
 
+        // --- external control (Claude / MCP · CLI) ---
+        // New strings are hardcoded English on purpose (no new L.T keys — Strings.cs is managed separately).
+        _extEnabledChk = Check("Enable external control (Claude / MCP · CLI)", _extEnabled);
+        _extReturnContentChk = Check("Allow returning captured content (pixels / OCR text)", _extReturnContent);
+        _extSilentChk = Check("Allow silent (no shutter flash) external captures", _extSilent);
+        _extRate = MakeSlider(1, 120, _extRateLimit);
+        var mcpBtn = Btn("Copy MCP config", CopyMcpConfig, primary: false);
+        mcpBtn.HorizontalAlignment = HorizontalAlignment.Left;
+        mcpBtn.Margin = new Thickness(0, 10, 0, 2);
+        root.Children.Add(Card("External control (Claude / MCP · CLI)",
+            _extEnabledChk,
+            Hint("When off, the control pipe server is never created (zero attack surface) and all MCP/CLI delegation is refused."),
+            _extReturnContentChk,
+            Hint("Lets external callers receive captured pixels / recognized text — the real exfiltration channel. Off by default."),
+            _extSilentChk,
+            SliderRow("Rate limit (per minute)", _extRate, null),
+            mcpBtn));
+
+        // --- automation ---
+        _clipOcrChk = Check("Auto-OCR images copied to the clipboard", _clipboardAutoOcr);
+        _watchOcrChk = Check("Watch a folder and auto-OCR new images", _watchFolderOcr);
+        _watchFolderBox = Field(_watchFolderPath, readOnly: true);
+        _allowShellChk = Check("Allow hotkey → shell command ({path} = last capture)", _allowShell);
+        root.Children.Add(Card("Automation",
+            _clipOcrChk,
+            Hint("Extends clipboard watch: recognizes text in any image you copy."),
+            _watchOcrChk,
+            Row("Watch folder", _watchFolderBox, Btn(L.T("set.browse"), PickWatchFolder, primary: false)),
+            _allowShellChk,
+            Hint("Shell commands run with your privileges and are never exposed to MCP or the pipe.")));
+
         // --- actions ---
         var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         actions.Children.Add(Btn(L.T("set.cancel"), Close, primary: false));
@@ -246,6 +293,14 @@ public sealed class SettingsWindow : Window
             int idx = _audioCombo.SelectedIndex;
             _videoAudio = idx >= 0 && idx < codes.Length ? codes[idx] : "none";
         }
+        if (_extEnabledChk != null) _extEnabled = _extEnabledChk.IsChecked == true;
+        if (_extReturnContentChk != null) _extReturnContent = _extReturnContentChk.IsChecked == true;
+        if (_extSilentChk != null) _extSilent = _extSilentChk.IsChecked == true;
+        if (_extRate != null) _extRateLimit = (int)_extRate.Value;
+        if (_clipOcrChk != null) _clipboardAutoOcr = _clipOcrChk.IsChecked == true;
+        if (_watchOcrChk != null) _watchFolderOcr = _watchOcrChk.IsChecked == true;
+        if (_watchFolderBox != null) _watchFolderPath = _watchFolderBox.Text;
+        if (_allowShellChk != null) _allowShell = _allowShellChk.IsChecked == true;
     }
 
     /// <summary>Restore the original UI language if the user closes without saving the preview.</summary>
@@ -341,6 +396,21 @@ public sealed class SettingsWindow : Window
         }
     }
 
+    private void PickWatchFolder()
+    {
+        if (_watchFolderBox == null) return;
+        using var dlg = new WinForms.FolderBrowserDialog { SelectedPath = _watchFolderBox.Text };
+        if (dlg.ShowDialog() == WinForms.DialogResult.OK)
+        {
+            _watchFolderPath = dlg.SelectedPath;
+            _watchFolderBox.Text = _watchFolderPath;
+        }
+    }
+
+    /// <summary>Copy a ready-to-paste MCP server entry (Claude Desktop / MCP clients) to the clipboard.</summary>
+    private static void CopyMcpConfig() =>
+        ImageClipboard.CopyText("{\"mcpServers\":{\"wsnap\":{\"command\":\"wsnap\",\"args\":[\"mcp\"]}}}");
+
     // ---- apply ----
 
     private void ApplyAndClose()
@@ -362,6 +432,14 @@ public sealed class SettingsWindow : Window
         s.ImgurClientId = _imgurId.Trim();
         s.VideoFps = _videoFps;
         s.VideoAudio = _videoAudio;
+        s.ExternalControlEnabled = _extEnabled;
+        s.ExternalControlAllowReturnContent = _extReturnContent;
+        s.ExternalControlAllowSilent = _extSilent;
+        s.ExternalControlRateLimitPerMin = _extRateLimit;
+        s.ClipboardAutoOcr = _clipboardAutoOcr;
+        s.WatchFolderOcr = _watchFolderOcr;
+        s.WatchFolderPath = _watchFolderPath.Trim();
+        s.AllowShellCommands = _allowShell;
 
         AutoStart.Set(_autostart);
         s.StartWithWindows = _autostart;

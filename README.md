@@ -46,6 +46,7 @@ that core in one consistent dark UI, running quietly from the tray.
 - **One dark design system** across the overlay, editor, and settings — including dark DWM title bars.
 - **Lean tray resident.** Idle memory was cut hard in 1.2.4 (single-digit working set / ~85 MB committed); the OCR engine loads lazily and releases after use, so OCR doesn't tax the idle footprint.
 - **Optional sharing.** Imgur upload (bring your own Client-ID) from the thumbnail.
+- **Control it from the terminal or an AI agent.** A built-in MCP server (`wsnap mcp`, for Claude Desktop / Claude Code) plus a `wsnap <verb>` CLI expose capture, OCR, color, GIF, and history through one command bus. **Off by default** — turn it on in Settings.
 
 ## Install
 
@@ -84,6 +85,52 @@ winget install openwong2kim.wsnap
 **Settings:** save folder, hotkey rebinding, auto-dismiss delay, max thumbnails shown,
 run at startup, intercept `Win+Shift+S`, history (date folders), clipboard detection,
 telemetry (opt-in), upload.
+
+## Automate & control (CLI · MCP)
+
+wsnap can be driven from a terminal or by an AI agent through one shared command bus.
+This is **off by default** — turn on **External control** in Settings first (with it off,
+the control pipe server is never even created).
+
+**CLI** — `wsnap <verb>`:
+
+```powershell
+wsnap capture --full                       # the monitor under the cursor
+wsnap capture --region 0,0,800,600         # a fixed rectangle -> saved PNG
+wsnap capture --window --copy              # foreground window, straight to the clipboard
+wsnap ocr --last                           # OCR the most recent capture
+wsnap ocr --file shot.png --lang latin     # OCR an image file
+wsnap color --cursor --format hex          # pixel color under the cursor
+wsnap gif --region 0,0,640,480 --duration 5
+wsnap history list --limit 10
+```
+
+Add `--json` for a single machine-readable object on stdout, or `--out -` to stream raw PNG
+bytes. Exit codes: `0` ok · `1` error · `2` usage · `3` needs the running app · `4` no
+result / cancelled · `5` OCR unavailable. Run `wsnap --help` for the full list.
+
+**MCP** — register the `wsnap mcp` server with an MCP client. For Claude Code:
+
+```powershell
+claude mcp add wsnap -- wsnap mcp
+```
+
+For Claude Desktop, add to `%APPDATA%\Claude\claude_desktop_config.json` (Settings has a
+**Copy MCP config** button for this snippet):
+
+```json
+{ "mcpServers": { "wsnap": { "command": "wsnap", "args": ["mcp"] } } }
+```
+
+The server exposes twelve tools: `capture_region`, `capture_fullscreen`, `capture_window`,
+`capture_interactive`, `ocr_region`, `ocr_image`, `ocr_last_capture`, `pick_color`,
+`list_history`, `get_capture`, `record_gif`, `stop_recording`.
+
+**Security.** Control is local-only — a per-user named pipe plus MCP stdio, with **no network
+listener**. Every agent-initiated capture raises a visible signal (shutter flash / toast /
+tray badge) and is written to an audit log (`%APPDATA%\wsnap\audit.log`). Returning captured
+pixels or OCR text to the caller is a separate opt-in (**Allow returning captured content**,
+off by default), and a per-minute rate limit applies.
 
 ## Build from source (Windows)
 
@@ -127,6 +174,13 @@ ISCC.exe installer.iss                      # -> dist\wsnap-setup-x.y.z.exe (Inn
 | `Uploader.cs` | Imgur upload |
 | `Settings.cs` / `SettingsWindow.cs` | Settings model · UI (dark cards) |
 | `AutoStart.cs` / `SingleInstance.cs` / `CrashLog.cs` / `Toast.cs` | Tray-resident infrastructure |
+| `Control/Command.cs` / `CommandCatalog.cs` / `CommandRouter.cs` | Control-layer contracts · command catalog (id ↔ MCP tool ↔ CLI) · local command bus |
+| `Control/CaptureCore.cs` / `ControlGate.cs` / `AuditLog.cs` | Headless capture/OCR/color facade · consent · rate-limit gate · audit log |
+| `Control/CliRouter.cs` / `ConsoleBridge.cs` | `wsnap <verb>` CLI (parsing · output contract) · WinExe console attach |
+| `Control/McpStdioServer.cs` / `JsonRpc.cs` | `wsnap mcp` stdio MCP server · minimal JSON-RPC 2.0 |
+| `Control/PipeServer.cs` / `PipeClientRouter.cs` / `PipeProtocol.cs` | Per-user named-pipe control server · client delegation · NDJSON framing |
+| `Control/FolderWatcher.cs` | Watch-folder auto-OCR |
+| `App.Control.cs` | Resident host — interactive / recording delegation · external-control wiring |
 
 ## Good to know
 
@@ -135,6 +189,7 @@ ISCC.exe installer.iss                      # -> dist\wsnap-setup-x.y.z.exe (Inn
   short idle. Rotated text isn't de-skewed (screenshots are assumed upright).
 - **Scrolling capture** is best-effort — solid on text and web pages, weaker on smooth-scroll / parallax content.
 - **Privacy:** no tracking. Telemetry is opt-in and local-log only (`%APPDATA%\wsnap\wsnap.log`).
+- **External control (CLI / MCP)** stays off until you enable it, talks only over local stdio and a per-user named pipe (**no network listener**), and records every agent-initiated capture — each with a visible on-screen signal — to `%APPDATA%\wsnap\audit.log`.
 - **Code signing** is recommended before wide distribution to avoid SmartScreen — see `SIGNING.md` / `ROADMAP.md`.
 
 ## License
