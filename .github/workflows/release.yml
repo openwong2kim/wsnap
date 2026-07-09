@@ -18,12 +18,17 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      # EnableCompressionInSingleFile is deliberately OFF (v1.8): compressed managed assemblies
+      # can't be memory-mapped, so the runtime inflates them into anonymous (swap-backed) pages —
+      # measured +115 MB working set / +74 MB private at idle and ~2x the startup CPU. The bigger
+      # exe costs nothing at download time (the installer/zip re-compress it) and its pages are
+      # file-backed, which the OS can reclaim for free.
       - name: Publish self-contained single-file exe
         run: >
           dotnet publish Wsnap.csproj -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:EnableCompressionInSingleFile=true
+          -p:EnableCompressionInSingleFile=false
           -o publish
 
       # --- Code signing (SignPath) — only runs once SIGNPATH_ORGANIZATION_ID is set ---

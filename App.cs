@@ -347,6 +347,7 @@ public partial class App : System.Windows.Application
             menu.Items.Add(L.T("tray.checkUpdate"), null, (_, _) => _ = CheckForUpdateAsync(manual: true));
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add(L.T("tray.exit"), null, (_, _) => Shutdown());
+        TrayMenuTheme.Apply(menu);   // last: submenus exist now, so the dark theme reaches them
         return menu;
     }
 

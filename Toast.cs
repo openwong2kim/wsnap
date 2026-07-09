@@ -45,20 +45,35 @@ public sealed class Toast : Window
         ShowInTaskbar = false;
         SizeToContent = SizeToContent.WidthAndHeight;
 
+        // Design-system panel: theme tokens + hairline border + a small accent dot so the
+        // toast reads as wsnap (not a generic OS balloon) at a glance.
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Width = 7, Height = 7,
+            Fill = new SolidColorBrush(Theme.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 1, 9, 0)
+        });
+        row.Children.Add(new TextBlock
+        {
+            Text = message,
+            Foreground = new SolidColorBrush(Theme.Text),
+            FontFamily = Theme.Font,
+            FontSize = 13,
+            MaxWidth = 360,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center
+        });
         var border = new Border
         {
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xF0, 0x1E, 0x1E, 0x1E)),
-            Padding = new Thickness(14, 10, 14, 10),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Opacity = 0.5 },
-            Child = new TextBlock
-            {
-                Text = message,
-                Foreground = System.Windows.Media.Brushes.White,
-                FontSize = 13,
-                MaxWidth = 360,
-                TextWrapping = TextWrapping.Wrap
-            }
+            CornerRadius = new CornerRadius(10),
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xF2, Theme.Panel.R, Theme.Panel.G, Theme.Panel.B)),
+            BorderBrush = Theme.Stroke(Theme.BorderStrong),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(14, 10, 16, 10),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 2, Opacity = 0.5 },
+            Child = row
         };
         Content = border;
     }
@@ -68,8 +83,13 @@ public sealed class Toast : Window
         Show();
         PlaceSelf();
 
+        // Fade + a short upward slide (transform-only, so the HWND placement is untouched).
         Opacity = 0;
-        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120)));
+        var rise = new TranslateTransform(0, 10);
+        if (Content is Border b) { b.RenderTransform = rise; }
+        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
+        rise.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(_ms) };
         timer.Tick += (_, _) =>
