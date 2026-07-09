@@ -62,7 +62,7 @@ public static class CaptureCore
         {
             var ctx = ForegroundContext(w, h);
             string path;
-            using (var bmp = ScreenGrab.Grab(x, y, w, h))
+            using (var bmp = ScreenGrab.GrabFast(x, y, w, h))
                 path = CaptureStore.SaveBitmap(bmp, ctx);
             return CommandResult.FileSaved(path, w, h, ctx.App, ctx.Title, SafeLen(path));
         }
@@ -76,7 +76,7 @@ public static class CaptureCore
         if (w < 1 || h < 1) return CommandResult.Fail("no_region", "region must be at least 1x1");
         try
         {
-            using var bmp = ScreenGrab.Grab(x, y, w, h);
+            using var bmp = ScreenGrab.GrabFast(x, y, w, h);
             return await RunOcr(bmp, lang);
         }
         catch (Exception ex) { CrashLog.Write("core-ocr-region", ex); return CommandResult.Fail("internal", ex.Message); }

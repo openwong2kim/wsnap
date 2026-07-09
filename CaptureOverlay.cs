@@ -68,6 +68,8 @@ public sealed class CaptureOverlay : Window
     private readonly System.Windows.Controls.Canvas _canvas;
     private readonly RectangleGeometry _holeGeo;
     private readonly System.Windows.Shapes.Rectangle _selection;
+    private readonly System.Windows.Shapes.Ellipse[] _handles = new System.Windows.Shapes.Ellipse[4];
+    private const double HandleSize = 8;
     private readonly Border _badge;
     private readonly TextBlock _badgeText;
     private readonly Border _hint;
@@ -178,6 +180,22 @@ public sealed class CaptureOverlay : Window
         };
         _canvas.Children.Add(_selection);
 
+        // macOS-style corner handles: small white dots that track the drag. Pure affordance
+        // polish — they disappear on commit (the region isn't resizable afterwards, and a
+        // visible handle would promise that it is).
+        for (int i = 0; i < _handles.Length; i++)
+        {
+            _handles[i] = new System.Windows.Shapes.Ellipse
+            {
+                Width = HandleSize, Height = HandleSize,
+                Fill = System.Windows.Media.Brushes.White,
+                Stroke = new SolidColorBrush(_accent), StrokeThickness = 1.25,
+                Visibility = Visibility.Collapsed, IsHitTestVisible = false,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 5, ShadowDepth = 1, Opacity = 0.45 }
+            };
+            _canvas.Children.Add(_handles[i]);
+        }
+
         // window-hover highlight (dashed) + title label
         _winHi = new System.Windows.Shapes.Rectangle
         {
@@ -199,17 +217,21 @@ public sealed class CaptureOverlay : Window
         _badgeText = new TextBlock { Foreground = System.Windows.Media.Brushes.White, FontFamily = Theme.Font, FontSize = 12, FontWeight = FontWeights.SemiBold };
         _badge = new Border
         {
-            CornerRadius = new CornerRadius(6), Padding = new Thickness(7, 3, 7, 3),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xDC, 0x14, 0x16, 0x19)),
-            Child = _badgeText, Visibility = Visibility.Collapsed, IsHitTestVisible = false
+            CornerRadius = new CornerRadius(999), Padding = new Thickness(10, 4, 10, 4),   // pill
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xF0, 0x16, 0x18, 0x1B)),
+            BorderBrush = Theme.Stroke(Theme.BorderStrong), BorderThickness = new Thickness(1),
+            Child = _badgeText, Visibility = Visibility.Collapsed, IsHitTestVisible = false,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 8, ShadowDepth = 1, Opacity = 0.4 }
         };
         _canvas.Children.Add(_badge);
 
         _hint = new Border
         {
-            CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 9, 14, 9),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xCC, 0x14, 0x16, 0x19)),
+            CornerRadius = new CornerRadius(999), Padding = new Thickness(18, 10, 18, 10),   // pill
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE0, 0x16, 0x18, 0x1B)),
+            BorderBrush = Theme.Stroke(Theme.BorderStrong), BorderThickness = new Thickness(1),
             IsHitTestVisible = false,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Opacity = 0.45 },
             Child = new TextBlock
             {
                 Text = mode == CaptureMode.OcrText ? L.T("ov.hintOcr")
@@ -273,7 +295,7 @@ public sealed class CaptureOverlay : Window
             _vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
             int w = GetSystemMetrics(SM_CXVIRTUALSCREEN);
             int h = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-            if (w > 0 && h > 0) _freeze = ScreenGrab.Grab(_vx, _vy, w, h);
+            if (w > 0 && h > 0) _freeze = ScreenGrab.GrabFast(_vx, _vy, w, h);
         }
         catch (Exception ex) { CrashLog.Write("overlay-freeze", ex); _freeze = null; }
     }
@@ -314,6 +336,7 @@ public sealed class CaptureOverlay : Window
         // hide the hover highlight while dragging, but KEEP _hovered so a no-drag click can still grab the window
         _winHi.Visibility = Visibility.Collapsed; _winLabel.Visibility = Visibility.Collapsed;
         _selection.Visibility = Visibility.Visible;
+        foreach (var hnd in _handles) hnd.Visibility = Visibility.Visible;
         _hint.Visibility = Visibility.Collapsed;
         CaptureMouse();
     }
@@ -349,6 +372,13 @@ public sealed class CaptureOverlay : Window
         System.Windows.Controls.Canvas.SetTop(_selection, y);
         _selection.Width = w; _selection.Height = h;
         _holeGeo.Rect = new Rect(x, y, w, h);
+
+        // corner handles track the selection (centered on each corner)
+        double hh = HandleSize / 2;
+        System.Windows.Controls.Canvas.SetLeft(_handles[0], x - hh);      System.Windows.Controls.Canvas.SetTop(_handles[0], y - hh);
+        System.Windows.Controls.Canvas.SetLeft(_handles[1], x + w - hh);  System.Windows.Controls.Canvas.SetTop(_handles[1], y - hh);
+        System.Windows.Controls.Canvas.SetLeft(_handles[2], x - hh);      System.Windows.Controls.Canvas.SetTop(_handles[2], y + h - hh);
+        System.Windows.Controls.Canvas.SetLeft(_handles[3], x + w - hh);  System.Windows.Controls.Canvas.SetTop(_handles[3], y + h - hh);
 
         int pw = Math.Abs(cur.X - _startPhys.X);
         int ph = Math.Abs(cur.Y - _startPhys.Y);
@@ -450,6 +480,7 @@ public sealed class CaptureOverlay : Window
         _committed = true;
         _loupe.Visibility = Visibility.Collapsed;
         _badge.Visibility = Visibility.Collapsed;
+        foreach (var hnd in _handles) hnd.Visibility = Visibility.Collapsed;   // region is no longer resizable
 
         _toolbar = BuildToolbar();
         _canvas.Children.Add(_toolbar);

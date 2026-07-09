@@ -23,6 +23,8 @@ namespace Wsnap;
 /// <summary>Pixel grabbing off the live screen (device pixels in, Bitmap/BitmapSource out).</summary>
 public static class ScreenGrab
 {
+    /// <summary>GDI grab (CopyFromScreen). The universal fallback, and the right choice for
+    /// recorders re-grabbing many times per second (no per-call duplication setup).</summary>
     public static Bitmap Grab(int x, int y, int w, int h)
     {
         var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
@@ -30,6 +32,13 @@ public static class ScreenGrab
         g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h), CopyPixelOperation.SourceCopy);
         return bmp;
     }
+
+    /// <summary>One-shot grab for the latency-critical paths (overlay freeze, full-screen
+    /// delivery): try the GPU desktop-duplication path first — several times faster than a
+    /// full-desktop CPU BitBlt on large/high-DPI screens — and fall back to GDI whenever it
+    /// can't serve (RDP, rotated outputs, driver quirks).</summary>
+    public static Bitmap GrabFast(int x, int y, int w, int h)
+        => DxgiGrab.TryGrab(x, y, w, h) ?? Grab(x, y, w, h);
 
     /// <summary>
     /// Frozen WPF BitmapSource from a GDI Bitmap by copying its pixels ONCE via LockBits.

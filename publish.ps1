@@ -5,11 +5,14 @@ $ErrorActionPreference = 'Stop'
 $proj = Join-Path $PSScriptRoot 'Wsnap.csproj'
 $out  = Join-Path $PSScriptRoot 'publish'
 
+# Compression OFF on purpose (v1.8): compressed assemblies can't be memory-mapped, so they
+# inflate into anonymous pages at startup — measured +115 MB idle working set and ~2x startup
+# CPU. Disk is the cheapest resource; the release zip/installer re-compress for download anyway.
 dotnet publish $proj `
   -c Release -r win-x64 --self-contained true `
   -p:PublishSingleFile=true `
   -p:IncludeNativeLibrariesForSelfExtract=true `
-  -p:EnableCompressionInSingleFile=true `
+  -p:EnableCompressionInSingleFile=false `
   -o $out
 
 Write-Host ""

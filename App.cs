@@ -30,7 +30,6 @@ public partial class App : System.Windows.Application
     private HotkeyHook? _hook;
     private WinForms.NotifyIcon? _tray;
     private ClipboardWatcher? _clipboard;
-    private DispatcherTimer? _idleTrim;
     private UpdateInfo? _update;
 
     // Control layer (v1.7): the tray instance hosts one shared bus + gate; the pipe server is
@@ -135,6 +134,40 @@ public partial class App : System.Windows.Application
 
         StartMemoryTrimming();
         ScheduleUpdateCheck();
+        PrewarmRenderPipeline();
+    }
+
+    /// <summary>
+    /// Warm WPF's window/composition path once at startup so the FIRST hotkey press doesn't pay
+    /// it. Creating the first real Window JIT-compiles layout/render code and spins up the D3D
+    /// composition target — worth 100–300 ms on cold processes, which used to land on the first
+    /// capture. A 1×1 borderless window far off-screen renders one frame and closes; the user
+    /// never sees it.
+    /// </summary>
+    private void PrewarmRenderPipeline()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            try
+            {
+                var w = new Window
+                {
+                    WindowStyle = WindowStyle.None,
+                    ResizeMode = ResizeMode.NoResize,
+                    ShowInTaskbar = false,
+                    ShowActivated = false,
+                    Width = 1,
+                    Height = 1,
+                    Left = -32000,
+                    Top = -32000,
+                    Background = System.Windows.Media.Brushes.Black,
+                    Content = new System.Windows.Controls.Canvas()
+                };
+                w.ContentRendered += (_, _) => w.Close();
+                w.Show();
+            }
+            catch (Exception ex) { CrashLog.Write("prewarm", ex); }
+        });
     }
 
     private void StartPipeServer()
@@ -244,11 +277,11 @@ public partial class App : System.Windows.Application
 
     /// <summary>
     /// Keep the resident (tray) footprint small. Once startup/JIT settles, do one compacting
-    /// trim to release the warm-up allocations. Then a SINGLE-SHOT idle timer empties the
-    /// working set once the process has sat untouched for a while — reset on every capture so a
-    /// busy session never fires it. EmptyWorkingSet pages the whole process (JIT code + WPF
-    /// internals) out, so firing it on a short repeating timer punished the very next hotkey
-    /// press with a hard page-fault storm; deferring it to genuine long idle avoids that.
+    /// trim to release the warm-up allocations. There is deliberately NO EmptyWorkingSet here:
+    /// paging the process out made the Task-Manager number pretty at idle but hit the NEXT
+    /// hotkey press with a hard page-fault storm — the exact "capture feels laggy" complaint.
+    /// The honest footprint comes from compacting GCs (RetainVM=false returns freed memory)
+    /// and from not bundling weight we don't use; the OS is better at paging than a timer.
     /// </summary>
     private void StartMemoryTrimming()
     {
@@ -258,26 +291,11 @@ public partial class App : System.Windows.Application
             warmup.Tick += (_, _) => { warmup.Stop(); MemoryTrim.TrimNow(); };
             warmup.Start();
         });
-
-        _idleTrim = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(5) };
-        _idleTrim.Tick += (_, _) => { _idleTrim!.Stop(); MemoryTrim.TrimWorkingSet(); };
-        _idleTrim.Start();
-    }
-
-    /// <summary>Push the one-shot idle working-set trim back out to a full interval from now.
-    /// Called on any capture activity so a frequently-used session keeps its pages resident and
-    /// never pays EmptyWorkingSet's page-fault cost right before the next interaction.</summary>
-    private void ResetIdleTrim()
-    {
-        if (_idleTrim == null) return;
-        _idleTrim.Stop();
-        _idleTrim.Start();   // Stop+Start restarts the countdown from now
     }
 
     /// <summary>After a capture's transient bitmaps are gone, reclaim + return the memory.</summary>
     private void ScheduleTrim()
     {
-        ResetIdleTrim();
         var t = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1.5) };
         t.Tick += (_, _) => { t.Stop(); MemoryTrim.TrimNow(); };
         t.Start();
@@ -329,6 +347,7 @@ public partial class App : System.Windows.Application
             menu.Items.Add(L.T("tray.checkUpdate"), null, (_, _) => _ = CheckForUpdateAsync(manual: true));
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add(L.T("tray.exit"), null, (_, _) => Shutdown());
+        TrayMenuTheme.Apply(menu);   // last: submenus exist now, so the dark theme reaches them
         return menu;
     }
 
@@ -387,7 +406,6 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
-        ResetIdleTrim();   // active use — keep the process resident so the overlay opens instantly
         var ctx = ForegroundContext();   // BEFORE the overlay freezes/steals focus
         var overlay = new CaptureOverlay(CaptureMode.Capture) { NameCtx = ctx };
         overlay.Closed += (_, _) => { _overlayOpen = false; RouteCapture(overlay); };
@@ -478,9 +496,6 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
-        // Active use — reset the one-shot idle trim so a long GIF/video/scroll recording started
-        // from here never has EmptyWorkingSet fire mid-capture and page-fault away recording frames.
-        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.OcrText);
         overlay.Closed += (_, _) =>
         {
@@ -496,7 +511,6 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
-        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.ColorPick);
         overlay.Closed += (_, _) => _overlayOpen = false;
         overlay.Show();
@@ -507,7 +521,6 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
-        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.Region);
         overlay.Closed += (_, _) =>
         {
@@ -526,7 +539,6 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
-        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.Region);
         overlay.Closed += (_, _) =>
         {
@@ -552,7 +564,6 @@ public partial class App : System.Windows.Application
     {
         if (_overlayOpen) return;
         _overlayOpen = true;
-        ResetIdleTrim();
         var overlay = new CaptureOverlay(CaptureMode.Region);
         overlay.Closed += (_, _) =>
         {
@@ -574,7 +585,7 @@ public partial class App : System.Windows.Application
         {
             var ctx = ForegroundContext(r.Width, r.Height);
             string path;
-            using (var bmp = ScreenGrab.Grab(r.X, r.Y, r.Width, r.Height))
+            using (var bmp = ScreenGrab.GrabFast(r.X, r.Y, r.Width, r.Height))
                 path = CaptureStore.SaveBitmap(bmp, ctx);
             if (Settings.Current.AutoCopyOnCapture) ImageClipboard.CopyImageFile(path);
             new ThumbnailWindow(path).Show();

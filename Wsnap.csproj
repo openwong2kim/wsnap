@@ -2,17 +2,17 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <!-- 10.0.19041 target kept for WinRT projection availability; OCR now uses ONNX (RapidOcrNet),
-         no longer Windows.Media.Ocr. SupportedOSPlatformVersion below keeps the floor at 1809. -->
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
-    <SupportedOSPlatformVersion>10.0.18362.0</SupportedOSPlatformVersion>
+    <!-- Plain windows TFM (no 10.0.x): OCR moved to ONNX (RapidOcrNet) in v1.3, so nothing uses
+         WinRT any more — the 10.0.19041 target only served to ship a 25 MB Microsoft.Windows.SDK.NET
+         projection assembly nobody called. Dropping it is the single biggest size cut in v1.8. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms> <!-- Screen/pixel capture + NotifyIcon tray -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>wsnap.ico</ApplicationIcon>
     <AssemblyName>wsnap</AssemblyName>
-    <Version>1.7.0</Version>
+    <Version>1.8.0</Version>
     <RootNamespace>Wsnap</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks> <!-- scroll-capture row matching uses pointers -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn> <!-- DPI is set via WPF manifest; WinForms hint is moot. -->
@@ -49,25 +49,21 @@
          package from copying its own model set loose next to the exe — we embed our own models
          (below) and extract them at runtime, keeping distribution a true single file. -->
     <PackageReference Include="RapidOcrNet" Version="2.0.0" ExcludeAssets="contentFiles" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- OCR models embedded INTO the exe (not loose content), so the single-file build stays a
-         single file and the portable zip — which ships only wsnap.exe — keeps working. Ocr.cs
-         extracts them to %LOCALAPPDATA%\wsnap\models on first use. det + cls are language-agnostic
-         (from RapidOcrNet's set); korean_rec covers KO + EN + digits + symbols.
-         Run tools/fetch-ocr-models.ps1 to (re)download the Korean pair. -->
+    <!-- Only the small language-agnostic OCR models stay embedded (det 4.8 MB + cls 0.6 MB) —
+         they're shared by every language and HuggingFace hosts no mobile-sized equivalent.
+         The Korean recognition pack (13.4 MB) is NOT embedded any more: since v1.8 it downloads
+         on first OCR use through the exact same languages/korean path every other language
+         already used (byte-identical files — tools/fetch-ocr-models.ps1 fetched from that URL).
+         Ocr.cs extracts the embedded pair to %LOCALAPPDATA%\wsnap\models on first use. -->
     <EmbeddedResource Include="models\v5\ch_PP-OCRv5_mobile_det.onnx">
       <LogicalName>wsnap.ocr.det.onnx</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="models\v5\ch_ppocr_mobile_v2.0_cls_infer.onnx">
       <LogicalName>wsnap.ocr.cls.onnx</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="models\v5\korean_rec.onnx">
-      <LogicalName>wsnap.ocr.rec.onnx</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="models\v5\korean_dict.txt">
-      <LogicalName>wsnap.ocr.keys.txt</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 
