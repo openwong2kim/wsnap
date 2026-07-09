@@ -3,6 +3,40 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.8.0] - 2026-07-10
+
+The diet release. Same features, roughly **half the memory** and a capture that fires the
+instant you press the hotkey — measured, not promised: idle footprint went from ~304 MB to
+~147 MB working set (159 → 82 MB private) on the same machine, and the post-idle "why is the
+overlay taking a second" page-fault storm is gone entirely.
+
+### Changed — performance & weight
+- **No more working-set purging.** The idle EmptyWorkingSet trim made Task Manager look good and
+  the next hotkey press feel terrible (the whole process had to page back in before the overlay
+  could appear). Removed; a compacting GC after each capture keeps the footprint honest instead.
+- **GPU screen grab.** The overlay freeze and full-screen captures now use DXGI desktop
+  duplication (the compositor's own frame, no yellow border) with automatic GDI fallback for
+  RDP/rotated-display/driver edge cases. Recorders (GIF/video/scroll) stay on GDI where per-frame
+  duplication setup would cost more than it saves.
+- **Render pipeline prewarm.** The first window WPF shows pays JIT + D3D composition setup —
+  wsnap now pays it invisibly at startup instead of on your first capture.
+- **25 MB of WinRT gone.** Nothing had used the Windows SDK projection since OCR moved to ONNX in
+  v1.3; retargeting to plain `net8.0-windows` deletes it from the exe.
+- **Korean OCR pack downloads on first use** (13.4 MB out of the exe), exactly like every other
+  language pack already did — same HuggingFace files, byte-identical. Upgrading users keep their
+  already-extracted models (migrated in place, no re-download). det/cls stay embedded (5.4 MB).
+- **Single-file compression off.** Compressed assemblies can't be memory-mapped, so the runtime
+  inflated ~110 MB of them into swap-backed private pages at every start — that was a third of
+  the resident footprint and ~half the startup CPU. The exe on disk grows; the installer/zip
+  re-compress it for download, and file-backed pages are reclaimable for free.
+
+### Changed — design
+- **Dark tray menu.** The last stock-Windows-looking surface now matches the design system:
+  dark panel, rounded hover, hairline separators, themed submenus.
+- **Overlay selection got macOS-style corner handles**, and the size badge / hint became bordered
+  pills on design-system tokens.
+- **Toast refresh:** design-system panel, hairline border, accent dot, ease-out rise animation.
+
 ## [1.7.0] - 2026-07-03
 
 wsnap becomes controllable — by you from the command line, and by AI agents through MCP —
