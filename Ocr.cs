@@ -26,13 +26,14 @@ using SkiaSharp;
 namespace Wsnap;
 
 /// <summary>
-/// On-device OCR via PaddleOCR PP-OCRv5 models on ONNX Runtime (RapidOcrNet) — free, offline,
-/// no network. Replaces the old Windows.Media.Ocr engine, which mangled mixed KO/EN text
-/// (O↔0, l↔I, dropped Hangul). Detection + angle-classification models ship with RapidOcrNet;
-/// recognition uses the Korean PP-OCRv5 model (covers KO + EN + digits + symbols).
+/// On-device OCR via PaddleOCR PP-OCRv5 models on ONNX Runtime (RapidOcrNet) — free, runs
+/// locally. Replaces the old Windows.Media.Ocr engine, which mangled mixed KO/EN text
+/// (O↔0, l↔I, dropped Hangul). Small language-agnostic det+cls models are embedded; every
+/// recognition pack (Korean default included, since v1.8) downloads on first use and is
+/// cached per-user, so ~13 MB of models stays out of the exe for users who never OCR.
 ///
-/// Memory: the engine (ONNX sessions + ~18 MB of models) is created lazily on the first OCR and
-/// released after a short idle window, so the resident tray footprint stays where v1.2.4 put it.
+/// Memory: the engine (ONNX sessions + models) is created lazily on the first OCR and
+/// released after a short idle window, so the resident tray footprint stays lean.
 /// </summary>
 public static class Ocr
 {
@@ -45,28 +46,29 @@ public static class Ocr
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
     /// <summary>
-    /// An OCR recognition language. det+cls models are shared (language-agnostic); only the
-    /// recognition model (rec) + character dictionary vary. PP-OCRv5 is script-based, so one
-    /// pack covers many languages (e.g. latin = 32 European languages incl. English).
-    /// <paramref name="Embedded"/> packs ship inside the exe; the rest download on first use.
+    /// An OCR recognition language. det+cls models are shared (language-agnostic, embedded);
+    /// only the recognition model (rec) + character dictionary vary. PP-OCRv5 is script-based,
+    /// so one pack covers many languages (e.g. latin = 32 European languages incl. English).
+    /// Every rec pack — Korean included since v1.8 — downloads on first use, keeping ~13 MB of
+    /// models out of the exe for the majority who never OCR.
     /// </summary>
-    public readonly record struct OcrLanguage(string Code, string Native, double SizeMb, bool Embedded);
+    public readonly record struct OcrLanguage(string Code, string Native, double SizeMb);
 
-    /// <summary>Selectable OCR languages. Korean is the embedded default (KO+EN); the rest
-    /// are PP-OCRv5 packs from HuggingFace monkt/paddleocr-onnx, fetched on demand.</summary>
+    /// <summary>Selectable OCR languages. Korean is the default (KO+EN); all are PP-OCRv5
+    /// packs from HuggingFace monkt/paddleocr-onnx, fetched on demand and cached per-user.</summary>
     public static readonly OcrLanguage[] Languages =
     {
-        new("korean",  "한국어 + English",        12.8, true),
-        new("latin",   "Latin — EN/DE/FR/ES/IT… (32)", 7.9, false),
-        new("chinese", "中文 + 日本語 + English", 84.5, false),
-        new("english", "English",                 8.0,  false),
-        new("eslav",   "Кириллица / Cyrillic",   9.0,  false),
-        new("greek",   "Ελληνικά / Greek",        8.0,  false),
-        new("arabic",  "العربية / Arabic",        8.0,  false),
-        new("hindi",   "हिन्दी / Devanagari",      9.0,  false),
-        new("tamil",   "தமிழ் / Tamil",            8.0,  false),
-        new("telugu",  "తెలుగు / Telugu",          8.0,  false),
-        new("thai",    "ไทย / Thai",              8.0,  false),
+        new("korean",  "한국어 + English",        13.4),
+        new("latin",   "Latin — EN/DE/FR/ES/IT… (32)", 7.9),
+        new("chinese", "中文 + 日本語 + English", 84.5),
+        new("english", "English",                 8.0),
+        new("eslav",   "Кириллица / Cyrillic",   9.0),
+        new("greek",   "Ελληνικά / Greek",        8.0),
+        new("arabic",  "العربية / Arabic",        8.0),
+        new("hindi",   "हिन्दी / Devanagari",      9.0),
+        new("tamil",   "தமிழ் / Tamil",            8.0),
+        new("telugu",  "తెలుగు / Telugu",          8.0),
+        new("thai",    "ไทย / Thai",              8.0),
     };
 
     private const string ModelBaseUrl = "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages";
@@ -74,12 +76,12 @@ public static class Ocr
     /// <summary>The configured OCR language, normalized to a supported one (else the embedded default).</summary>
     public static OcrLanguage CurrentLanguage => Resolve(Settings.Current.OcrLanguage);
 
-    /// <summary>Map a stored code to a known language, falling back to the embedded Korean default.</summary>
+    /// <summary>Map a stored code to a known language, falling back to the Korean default.</summary>
     public static OcrLanguage Resolve(string? code)
     {
         if (!string.IsNullOrWhiteSpace(code))
             foreach (var l in Languages) if (l.Code == code) return l;
-        return Languages[0];   // korean (embedded)
+        return Languages[0];   // korean (default)
     }
 
     /// <summary>Recognise text in a bitmap using the configured OCR language. Returns "" if
@@ -151,23 +153,13 @@ public static class Ocr
 
             try
             {
-                // det + cls are language-agnostic and always embedded in the exe. The recognition
-                // model + dictionary vary per language: Korean ships embedded; others download.
+                // det + cls are language-agnostic and always embedded in the exe. Every
+                // recognition pack (Korean included) downloads on first use and is cached.
                 string det = ExtractModel("wsnap.ocr.det.onnx", "det.onnx");
                 string cls = ExtractModel("wsnap.ocr.cls.onnx", "cls.onnx");
 
-                string rec, keys;
-                if (lang.Embedded)   // korean — bundled in the single-file exe
-                {
-                    rec = ExtractModel("wsnap.ocr.rec.onnx", "korean_rec.onnx");
-                    keys = ExtractModel("wsnap.ocr.keys.txt", "korean_dict.txt");
-                }
-                else
-                {
-                    var (_, r, k) = ModelPaths(lang);
-                    if (!EnsureInstalledCore(lang, null)) return null;   // download failed → caller shows "unavailable"
-                    rec = r; keys = k;
-                }
+                var (_, rec, keys) = ModelPaths(lang);
+                if (!EnsureInstalledCore(lang, null)) return null;   // download failed → caller shows "unavailable"
 
                 var engine = new RapidOcr();
                 engine.InitModels(det, cls, rec, keys);
@@ -192,10 +184,10 @@ public static class Ocr
         return (dir, Path.Combine(dir, "rec.onnx"), Path.Combine(dir, "dict.txt"));
     }
 
-    /// <summary>True if the language is ready to use right now (embedded, or already downloaded).</summary>
+    /// <summary>True if the language is ready to use right now (already downloaded or migrated).</summary>
     public static bool IsInstalled(OcrLanguage lang)
     {
-        if (lang.Embedded) return true;
+        MigrateLegacyKorean(lang);
         var (_, rec, keys) = ModelPaths(lang);
         return File.Exists(rec) && new FileInfo(rec).Length > 100_000 && File.Exists(keys);
     }
@@ -208,7 +200,7 @@ public static class Ocr
     /// </summary>
     private static bool EnsureInstalledCore(OcrLanguage lang, IProgress<double>? progress)
     {
-        if (lang.Embedded) return true;
+        MigrateLegacyKorean(lang);
         var (dir, rec, keys) = ModelPaths(lang);
         if (File.Exists(rec) && new FileInfo(rec).Length > 100_000 && File.Exists(keys))
             return true;
@@ -232,9 +224,38 @@ public static class Ocr
     }
 
     /// <summary>Pre-install a language's models (e.g. when the user picks it in settings) so the
-    /// first OCR is instant. No-op if embedded or already present. Reports download progress 0..1.</summary>
+    /// first OCR is instant. No-op if already present. Reports download progress 0..1.</summary>
     public static Task<bool> EnsureInstalledAsync(OcrLanguage lang, IProgress<double>? progress = null)
         => Task.Run(() => EnsureInstalledCore(lang, progress));
+
+    /// <summary>
+    /// Up to v1.7 the Korean pack shipped inside the exe and was extracted loose as
+    /// models\v5\korean_rec.onnx + korean_dict.txt. Those are byte-identical to the
+    /// languages/korean download, so an upgrading user shouldn't re-download 13 MB —
+    /// move the legacy pair into the per-language layout once, best-effort.
+    /// </summary>
+    private static void MigrateLegacyKorean(OcrLanguage lang)
+    {
+        if (lang.Code != "korean") return;
+        try
+        {
+            var (dir, rec, keys) = ModelPaths(lang);
+            if (File.Exists(rec) && File.Exists(keys)) return;   // already in place
+
+            string legacyDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "wsnap", "models", "v5");
+            string legacyRec = Path.Combine(legacyDir, "korean_rec.onnx");
+            string legacyKeys = Path.Combine(legacyDir, "korean_dict.txt");
+            if (!File.Exists(legacyRec) || !File.Exists(legacyKeys)) return;
+            if (new FileInfo(legacyRec).Length < 100_000) return;   // torn write — let the download path handle it
+
+            Directory.CreateDirectory(dir);
+            File.Move(legacyRec, rec, overwrite: true);
+            File.Move(legacyKeys, keys, overwrite: true);
+        }
+        catch { /* migration is best-effort; the download path is the fallback */ }
+    }
 
     /// <summary>Download to a temp file then atomically swap, so a torn write never wins.
     /// Streams so progress can be reported against Content-Length (the rec model is several MB).</summary>

@@ -273,7 +273,7 @@ public sealed class CaptureOverlay : Window
             _vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
             int w = GetSystemMetrics(SM_CXVIRTUALSCREEN);
             int h = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-            if (w > 0 && h > 0) _freeze = ScreenGrab.Grab(_vx, _vy, w, h);
+            if (w > 0 && h > 0) _freeze = ScreenGrab.GrabFast(_vx, _vy, w, h);
         }
         catch (Exception ex) { CrashLog.Write("overlay-freeze", ex); _freeze = null; }
     }

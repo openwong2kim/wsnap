@@ -13,30 +13,26 @@
 // <https://www.gnu.org/licenses/>.
 using System;
 using System.Runtime;
-using System.Runtime.InteropServices;
 
 namespace Wsnap;
 
 /// <summary>
 /// Keeps the resident (tray) footprint small. wsnap spends most of its life idle in the
 /// tray, but a capture briefly allocates large bitmaps (often on the GC Large Object Heap)
-/// and the CLR holds onto that committed memory long after. These helpers return it to the
-/// OS so Task Manager shows tens of MB at idle instead of hundreds.
+/// and the CLR holds onto that committed memory long after. <see cref="TrimNow"/> returns it:
+/// a compacting GC reclaims/defragments the LOH where capture bitmaps live, and with
+/// System.GC.RetainVM=false (runtimeconfig) the freed segments go back to the OS.
 ///
-///  - <see cref="TrimNow"/> does a compacting GC ONLY — it reclaims/​defragments the LOH where
-///    capture bitmaps live, and a compacting collection already returns the freed LOH segments
-///    to the OS. Call it after a capture or edit closes. It deliberately does NOT purge the
-///    working set (see below).
-///  - <see cref="TrimWorkingSet"/> empties the working set (EmptyWorkingSet), which pages the
-///    WHOLE process out — JIT-compiled code and WPF internals included. Those pages fault back
-///    in on demand, so the NEXT interaction (e.g. the capture hotkey after idling) pays a hard
-///    page-fault storm before the overlay can even appear. That trades a smaller idle-RAM
-///    number for first-interaction latency, so call it sparingly: once after a long idle, never
-///    on a short repeating timer.
+/// There is deliberately no EmptyWorkingSet helper any more. Purging the working set paged
+/// the WHOLE process out — JIT-compiled code and WPF internals included — so the next hotkey
+/// press paid a hard page-fault storm before the overlay could appear. That traded a smaller
+/// Task-Manager number for first-interaction latency, which is the opposite of what a capture
+/// tool should optimize for. The real footprint fixes live in packaging (nothing bundled that
+/// isn't used) and in this compacting trim after memory-heavy operations.
 /// </summary>
 internal static class MemoryTrim
 {
-    /// <summary>Compacting GC only (no working-set purge). Use after a memory-heavy operation finishes.</summary>
+    /// <summary>Compacting GC (no working-set purge). Use after a memory-heavy operation finishes.</summary>
     public static void TrimNow()
     {
         try
@@ -48,15 +44,4 @@ internal static class MemoryTrim
         }
         catch { /* GC tuning is best-effort */ }
     }
-
-    /// <summary>Empty the process working set (no GC). Costs a page-fault storm on the next
-    /// interaction, so reserve it for a one-shot long-idle trim — never a short repeating timer.</summary>
-    public static void TrimWorkingSet()
-    {
-        try { EmptyWorkingSet(GetCurrentProcess()); }
-        catch { /* best-effort */ }
-    }
-
-    [DllImport("psapi.dll")] private static extern bool EmptyWorkingSet(IntPtr hProcess);
-    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
 }

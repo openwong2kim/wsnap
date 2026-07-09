@@ -104,7 +104,7 @@ public partial class App : IResidentHost
         if (mode == "color") return InteractiveColor();
         if (_overlayOpen) return Task.FromResult(CommandResult.Fail("busy", "an overlay is already open"));
 
-        _overlayOpen = true; ResetIdleTrim();
+        _overlayOpen = true;
         var tcs = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var overlay = new CaptureOverlay(CaptureMode.Capture) { NameCtx = CaptureCore.ForegroundContext() };
         overlay.Closed += (_, _) =>
@@ -127,7 +127,7 @@ public partial class App : IResidentHost
     private Task<CommandResult> InteractiveOcr()
     {
         if (_overlayOpen) return Task.FromResult(CommandResult.Fail("busy", "an overlay is already open"));
-        _overlayOpen = true; ResetIdleTrim();
+        _overlayOpen = true;
         var tcs = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var overlay = new CaptureOverlay(CaptureMode.OcrText);
         overlay.Closed += async (_, _) =>
@@ -152,7 +152,7 @@ public partial class App : IResidentHost
     private Task<CommandResult> InteractiveColor()
     {
         if (_overlayOpen) return Task.FromResult(CommandResult.Fail("busy", "an overlay is already open"));
-        _overlayOpen = true; ResetIdleTrim();
+        _overlayOpen = true;
         var tcs = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var overlay = new CaptureOverlay(CaptureMode.ColorPick);
         // The color-pick overlay copies the HEX to the clipboard itself; we just report completion.
@@ -205,7 +205,7 @@ public partial class App : IResidentHost
             s.StopTcs?.TrySetResult(res);
             if (!untilStop) startTcs.TrySetResult(res);
         };
-        _gifs[id] = s; ResetIdleTrim(); s.Rec.Start();
+        _gifs[id] = s; s.Rec.Start();
 
         return untilStop ? Task.FromResult(CommandResult.RecordingStarted(id)) : startTcs.Task;
     }
@@ -236,7 +236,7 @@ public partial class App : IResidentHost
             if (fixedLen) startTcs.TrySetResult(res);
         }, fmt, fps);
 
-        _videos[id] = s; ResetIdleTrim(); s.Rec.Start();
+        _videos[id] = s; s.Rec.Start();
 
         if (fixedLen)
         {
@@ -253,7 +253,6 @@ public partial class App : IResidentHost
         var (x, y, w, h) = ArgReader.Rect(cmd.Args);
         if (w < 2 || h < 2) return Task.FromResult(CommandResult.Fail("no_region", "scroll needs a region of at least 2x2"));
         var tcs = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        ResetIdleTrim();
         new ScrollCapture(new System.Windows.Int32Rect(x, y, w, h), path =>
         {
             try { new ThumbnailWindow(path).Show(); } catch (Exception ex) { CrashLog.Write("scroll-present", ex); }
