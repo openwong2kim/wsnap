@@ -32,10 +32,13 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             Settings.Load();
-            string? overlayDemo = null;
+            string? overlayDemo = null, thumbDemo = null;
             if (desktop.Args != null)
                 foreach (var a in desktop.Args)
+                {
                     if (a.StartsWith("--overlay-demo=")) overlayDemo = a.Substring("--overlay-demo=".Length);
+                    if (a.StartsWith("--thumb-demo=")) thumbDemo = a.Substring("--thumb-demo=".Length);
+                }
 
             if (desktop.Args != null && System.Array.IndexOf(desktop.Args, "--showcase") >= 0)
             {
@@ -60,6 +63,14 @@ public partial class App : Application
                         $"{ov.Action}|{(r == null ? "" : $"{r.Value.X},{r.Value.Y},{r.Value.Width},{r.Value.Height}")}|{ov.ResultPath}");
                 };
                 desktop.MainWindow = ov;
+            }
+            else if (thumbDemo != null)
+            {
+                // Phase 3 verification mode (dev-only): pop a real ThumbnailWindow for the given
+                // image so the external harness can pixel-check placement and drive click/copy.
+                Settings.Current.AutoDismissSeconds = 0;     // in-memory: stay until harness acts
+                var tw = new ThumbnailWindow(thumbDemo);
+                desktop.MainWindow = tw;
             }
             else
             {

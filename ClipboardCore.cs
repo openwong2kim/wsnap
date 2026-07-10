@@ -61,6 +61,29 @@ public static class ClipboardCore
         catch (Exception ex) { CrashLog.Write("clip-set", ex); return false; }
     }
 
+    /// <summary>Copy a saved image file in all formats, suppressing the clipboard watcher echo.
+    /// Non-PNG files are transcoded so the clipboard "PNG" format actually holds PNG bytes.
+    /// Shared by the WPF ImageClipboard wrapper and the Avalonia windows (Phase 3).</summary>
+    public static bool CopyImageFile(string path)
+    {
+        try
+        {
+            byte[] bytes = File.ReadAllBytes(path);
+            byte[]? png = SkiaImage.LooksLikePng(bytes) ? bytes : SkiaImage.TranscodeToPng(bytes);
+            if (png == null) return false;
+            ClipboardWatcher.SuppressNext();
+            return CopyImagePng(png, path);
+        }
+        catch (Exception ex) { CrashLog.Write("clip-copy-file", ex); return false; }
+    }
+
+    /// <summary>Plain text with watcher suppression (copy path / OCR / hex results).</summary>
+    public static bool CopyTextSuppressed(string text)
+    {
+        ClipboardWatcher.SuppressNext();
+        return CopyText(text);
+    }
+
     /// <summary>Plain text (used for "copy path" and OCR / hex results).</summary>
     public static bool CopyText(string text)
     {

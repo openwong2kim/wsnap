@@ -104,7 +104,7 @@ Avalonia 창(topmost, 고정 좌표)에서 `PointerPressed` 시 `DataFormats.Fil
    - 공유 파일 무관화: `ClipboardWatcher.cs` **재작성**(WPF HwndSource → raw Win32 메시지-온리 창 + `ClipboardCore`/`SkiaImage`; FileDrop은 의도적으로 무시 — 구 CF_DIB-only 동작과 동일), `ScreenGrab.cs`를 partial로 분리(`ToBitmapSource`만 `ScreenGrabWpf.cs`로), `MonitorPlacement.cs` WPF 폴백 제거, `ClipboardCore.TryReadImageBytes(includeFileDrop)` 파라미터 추가. 셋 다 Avalonia에 링크.
    - Avalonia 전용 신규: `AvImaging.cs`(GDI Bitmap→WriteableBitmap, 알파 강제 불투명), `Icons.cs`(WPF와 동일 path 데이터 — 컷오버까지 양쪽 동기 유지).
    - 검증(외부·정량): 4색 창 + SetCursorPos 드래그 하네스 — 딤 비율 0.55(이론 0.549 정확), 펀치스루 내부 픽셀 원본 일치(Δ0), region 물리좌표 정확(400,300,480,360), 저장 PNG 크기·4사분면 픽셀 정확, Region 모드 rect-only, 툴바 모드 커밋+S키 저장; ClipboardWatcher 런타임 4/4(발화+픽셀·suppress·텍스트 무시·Stop). WPF 회귀 `.smoke` 11/11.
-4. **Phase 3**: ThumbnailWindow+HistoryWindow+Toast+SettingsWindow 이식 (§2-6). Toast가 생기면 `ToastStub.cs` 삭제.
+4. **Phase 3 — 진행 중, 3a 완료(PR #52)**: **3a = Toast+ThumbnailWindow 이식 완료** — `Wsnap.Avalonia/Toast.cs`(Transitions 기반 페이드/슬라이드, MonitorPlacement 물리 배치, ScalingChanged 재배치; **ToastStub.cs 삭제됨** — 링크된 Ocr.cs 진행 메시지가 실제로 표시됨), `Wsnap.Avalonia/ThumbnailWindow.cs`(스택/핀/자동해제/클릭 복사/Ctrl+클릭 경로 복사/우드래그 플링/드래그아웃 — IStorageFile은 스파이크(c)대로 **사전 해석**, `_filePath` 변경 시 재해석; 축소 디코드는 SKCodec 헤더 + `Bitmap.DecodeToWidth/Height`; **편집 버튼은 Phase 5의 EditorWindow 이식 때 추가** — 의도적 차이). 공유 정리: `ClipboardCore.CopyImageFile`/`CopyTextSuppressed` 신설, WPF `ImageClipboard.CopyImageFile`은 위임. 검증: 외부 하네스 — 물리 배치 정확(작업영역 우하단 @125%), 4사분면 픽셀 정확, 클릭→클립보드 PNG(크기·픽셀 정확), Ctrl+클릭→경로 텍스트, 플링→해제·앱 종료, Toast 시각 확인; `.smoke` 11/11. **남은 3b**: HistoryWindow+SettingsWindow 이식.
 
 ---
 

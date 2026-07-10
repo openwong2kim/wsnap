@@ -29,20 +29,9 @@ namespace Wsnap;
 /// </summary>
 public static class ImageClipboard
 {
-    /// <summary>Copy a saved image file in all formats. True on success. Non-PNG files are
-    /// transcoded so the clipboard's "PNG" format actually holds PNG bytes.</summary>
-    public static bool CopyImageFile(string path)
-    {
-        try
-        {
-            byte[] bytes = File.ReadAllBytes(path);
-            byte[]? png = SkiaImage.LooksLikePng(bytes) ? bytes : SkiaImage.TranscodeToPng(bytes);
-            if (png == null) return false;
-            ClipboardWatcher.SuppressNext();
-            return ClipboardCore.CopyImagePng(png, path);
-        }
-        catch (Exception ex) { CrashLog.Write("clip-copy-file", ex); return false; }
-    }
+    /// <summary>Copy a saved image file in all formats. True on success. Delegates to the
+    /// framework-agnostic core (shared with the Avalonia windows since Phase 3).</summary>
+    public static bool CopyImageFile(string path) => ClipboardCore.CopyImageFile(path);
 
     /// <summary>Copy an in-memory image (e.g. the editor's rendered result).</summary>
     public static bool CopyImageSource(BitmapSource src, string? fileForDrop = null)
