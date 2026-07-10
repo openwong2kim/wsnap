@@ -26,6 +26,7 @@ Rust/C++ 전면 재작성은 두 차례(다이어트 검토 시, 스택 재검�
 | [#43](https://github.com/openwong2kim/wsnap/pull/43) | v1.8.0 다이어트 릴리즈 | MERGED, [v1.8.0 릴리즈](https://github.com/openwong2kim/wsnap/releases/tag/v1.8.0) 공개됨 |
 | [#44](https://github.com/openwong2kim/wsnap/pull/44) | scoop/winget 해시 갱신 | MERGED |
 | [#45](https://github.com/openwong2kim/wsnap/pull/45) | Avalonia 마이그레이션 스캐폴드 + 스파이크(a)(d) | MERGED |
+| [#46](https://github.com/openwong2kim/wsnap/pull/46) | 이 핸드오프 문서 + 스파이크(b)(c) PASS 기록 | MERGED |
 
 `main`에 `Wsnap.Avalonia/` sibling 프로젝트가 존재. **release.yml은 여전히 `Wsnap.csproj`만 빌드** — Avalonia 작업은 배포에 영향 없음.
 
