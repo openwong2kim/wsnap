@@ -29,6 +29,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Wsnap.Avalonia/ is a SEPARATE sibling project (the Avalonia UI migration — see
+         plans/humming-meandering-aurora.md); it links several of THIS project's .cs files back
+         out via relative <Compile Include>, but its own .cs files (Program.cs, App.cs, scaffold
+         stubs) must never be swept into this WPF build's default **/*.cs glob, or duplicate/
+         conflicting type definitions (e.g. two different "Toast" classes) break the build. -->
+    <Compile Remove="Wsnap.Avalonia\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Embedded so the tray icon resolves inside the single-file exe. -->
     <EmbeddedResource Include="wsnap.ico" />
   </ItemGroup>

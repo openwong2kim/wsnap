@@ -19,3 +19,4 @@ publish-opt/
 .ocrcheck/
 .mosaiccheck/
 publish-nocomp/
+.buildcheck-avalonia/
