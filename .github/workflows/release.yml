@@ -31,6 +31,19 @@ jobs:
           -p:EnableCompressionInSingleFile=false
           -o publish
 
+      # Avalonia PREVIEW build (UI migration Phase 6): ships alongside the WPF default as an
+      # opt-in portable exe. Distinct name (wsnap-avalonia.exe) on purpose — installable
+      # side-by-side, and the shared single-instance mutex keeps only ONE resident at a time
+      # so hotkeys never fight. Becomes the default in a future release after preview
+      # feedback; no installer / no signing while in preview.
+      - name: Publish Avalonia preview exe
+        run: >
+          dotnet publish Wsnap.Avalonia/Wsnap.Avalonia.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=false
+          -o publish-avalonia
+
       # --- Code signing (SignPath) — only runs once SIGNPATH_ORGANIZATION_ID is set ---
       # Sign the exe BEFORE the installer is built, so the installer embeds the signed exe.
       # Until SignPath is configured (vars/secrets empty) every signing step is skipped and
@@ -92,6 +105,7 @@ jobs:
           if (-not $tag.StartsWith('v')) { $tag = 'v1.0.0' }
           Compress-Archive -Path publish\wsnap.exe, LICENSE, NOTICE, THIRD-PARTY-NOTICES.md -DestinationPath "wsnap-$tag-win-x64.zip" -Force
           (Get-FileHash publish\wsnap.exe -Algorithm SHA256).Hash + "  wsnap.exe" | Out-File SHA256SUMS.txt -Encoding ascii
+          (Get-FileHash publish-avalonia\wsnap-avalonia.exe -Algorithm SHA256).Hash + "  wsnap-avalonia.exe" | Out-File SHA256SUMS.txt -Append -Encoding ascii
           if (Test-Path dist) { Get-ChildItem dist\*.exe | ForEach-Object { ((Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name) | Out-File SHA256SUMS.txt -Append -Encoding ascii } }
 
       - name: Create / update GitHub Release
@@ -100,6 +114,7 @@ jobs:
           generate_release_notes: true
           files: |
             publish/wsnap.exe
+            publish-avalonia/wsnap-avalonia.exe
             wsnap-*-win-x64.zip
             dist/wsnap-setup-*.exe
             SHA256SUMS.txt
