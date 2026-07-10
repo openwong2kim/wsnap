@@ -3,6 +3,27 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.9.1] - 2026-07-10
+
+First round of Avalonia preview feedback, turned around same-day.
+
+### Added — Avalonia preview
+- **Thumbnail countdown bar.** A thin accent line along the thumbnail's bottom edge shrinks over
+  the auto-dismiss interval, so you can see how long the card will stay. It pauses (and hides)
+  while you hover, and disappears when pinned or when auto-dismiss is off.
+
+### Fixed
+- **Crisp tray icon** (both builds). The tray asked for a 20 px icon at 125% scaling and got the
+  16 px frame upscaled — mushy on Win11. wsnap now hands the shell the next embedded frame up
+  (24/32 px) and lets it downscale, which renders sharp.
+- **Editor opened with a light title bar** (preview). Avalonia's Win32 backend re-syncs the window
+  frame with the OS theme at show time, overriding the dark caption set during construction —
+  wsnap now re-asserts the dark title bar after the window opens and on activation, which also
+  covers the settings and history windows.
+- **Editor toolbar clipped at narrow widths** (preview). Copy/Save/Cancel now stay pinned
+  top-right instead of wrapping into the tool rows, the window has a sane minimum size, and the
+  capture overlay's selection now tracks the cursor without a frame of lag.
+
 ## [1.9.0] - 2026-07-10
 
 The preview release. wsnap's next UI stack ships today as an **opt-in preview** — the same app,
