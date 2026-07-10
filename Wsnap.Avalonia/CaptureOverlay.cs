@@ -377,21 +377,23 @@ public sealed class CaptureOverlay : Avalonia.Controls.Window
 
     private void OnMove(object? sender, PointerEventArgs e)
     {
-        // Cheap: stash the latest position; the heavy work runs on the next render frame.
+        // Latency-first coalescing: the FIRST move of a frame is processed IMMEDIATELY (queuing
+        // it for the next render tick — the original port — added a whole frame of visible lag,
+        // the selection/loupe trailing the cursor). Any further moves within the same frame are
+        // stashed and collapsed into one ProcessMove at the render tick, so a move flood still
+        // costs at most two updates per frame.
         _moveDip = e.GetPosition(this);
         GetCursorPos(out _movePhys);
-        _moveDirty = true;
-        if (!_frameRequested)
+        if (_frameRequested) { _moveDirty = true; return; }
+        _frameRequested = true;
+        ProcessMove(_moveDip, _movePhys);
+        RequestAnimationFrame(_ =>
         {
-            _frameRequested = true;
-            RequestAnimationFrame(_ =>
-            {
-                _frameRequested = false;
-                if (!_moveDirty) return;
-                _moveDirty = false;
-                ProcessMove(_moveDip, _movePhys);
-            });
-        }
+            _frameRequested = false;
+            if (!_moveDirty) return;
+            _moveDirty = false;
+            ProcessMove(_moveDip, _movePhys);
+        });
     }
 
     private void ProcessMove(Avalonia.Point p, POINT cur)

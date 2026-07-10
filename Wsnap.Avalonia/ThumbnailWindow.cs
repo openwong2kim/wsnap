@@ -45,10 +45,19 @@ namespace Wsnap;
 /// </summary>
 public sealed class ThumbnailWindow : Window
 {
-    private const double EdgeMargin = 24;
-    private const double Gap = 12;
+    private const double EdgeMargin = 24;     // visual distance card-edge ↔ work-area edge
+    private const double Gap = 12;            // visual gap between stacked cards
     private const double FlingThreshold = 40;
     private const double DragThreshold = 4;
+
+    // Phase 6 visual polish: the card adapts to the capture's aspect ratio (no letterbox bands),
+    // and the window is padded so the BoxShadow has room to render instead of being clipped flat
+    // at the window edge. Reflow compensates so the CARD (not the shadow box) sits at
+    // EdgeMargin/Gap — the shadow bands of adjacent windows may overlap, the cards never do.
+    private const double CardPad = 5;         // dark rim between card edge and image
+    private const double ShadowPad = 10;      // transparent margin around the card for the shadow
+    private const double MaxInnerW = 210, MaxInnerH = 148;
+    private const double MinInnerW = 110, MinInnerH = 84;
 
     private static readonly List<ThumbnailWindow> Stack = new();
 
@@ -62,7 +71,7 @@ public sealed class ThumbnailWindow : Window
     private string _filePath;
     private IStorageFile? _dragFile;             // pre-resolved for drag-out (spike (c) pitfall ③)
     private readonly bool _isVideo;
-    private readonly Image _img;
+    private readonly Border _img;   // image rendered as a rounded-corner ImageBrush
     private readonly Border _actionBar;
     private readonly Border _root;
     private readonly Border? _badge;
@@ -80,16 +89,35 @@ public sealed class ThumbnailWindow : Window
         SystemDecorations = SystemDecorations.None;
         CanResize = false;
         TransparencyLevelHint = new[] { WindowTransparencyLevel.Transparent };
-        Background = Brushes.Transparent;
+        // null (not Transparent): the shadow margin around the card must NOT be hit-testable,
+        // or the invisible band would swallow clicks meant for the card stacked underneath.
+        Background = null;
         Topmost = true;
         ShowInTaskbar = false;
         ShowActivated = false;
         WindowStartupLocation = WindowStartupLocation.Manual;
-        Width = 220;
-        Height = 158;
         FontFamily = AppTheme.Font;
 
-        _img = new Image { Source = LoadThumb(poster ?? filePath), Stretch = Stretch.Uniform, IsHitTestVisible = false };
+        // Size the card to the capture's aspect ratio inside the max box — a wide screenshot
+        // gets a wide card, a tall one a tall card, with no dead letterbox bands. Extreme
+        // aspects hit the min clamps and letterbox mildly inside the rounded image box.
+        var thumb = LoadThumb(poster ?? filePath);
+        double ar = thumb.PixelSize.Width / (double)Math.Max(1, thumb.PixelSize.Height);
+        double iw = MaxInnerW, ih = iw / ar;
+        if (ih > MaxInnerH) { ih = MaxInnerH; iw = ih * ar; }
+        iw = Math.Max(iw, MinInnerW);
+        ih = Math.Max(ih, MinInnerH);
+        Width = iw + 2 * CardPad + 2 * ShadowPad;
+        Height = ih + 2 * CardPad + 2 * ShadowPad;
+
+        // ImageBrush on a rounded Border (instead of an Image control) so the picture itself
+        // has rounded corners matching the card, not square ones poking into the radius.
+        _img = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Background = new ImageBrush(thumb) { Stretch = Stretch.Uniform },
+            IsHitTestVisible = false
+        };
 
         _actionBar = BuildActionBar();
 
@@ -119,12 +147,13 @@ public sealed class ThumbnailWindow : Window
 
         _root = new Border
         {
+            Margin = new Thickness(ShadowPad),   // room for the shadow to actually render
             CornerRadius = new CornerRadius(12),
             Background = new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x12, 0x13, 0x15)),
             BorderBrush = new SolidColorBrush(AppTheme.BorderStrong),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(5),
-            BoxShadow = BoxShadows.Parse("0 4 22 0 #8C000000"),
+            Padding = new Thickness(CardPad),
+            BoxShadow = BoxShadows.Parse("0 4 16 0 #80000000, 0 1 4 0 #40000000"),
             Child = grid,
             RenderTransform = _slide,
             RenderTransformOrigin = RelativePoint.Parse("50%,90%")
@@ -316,8 +345,10 @@ public sealed class ThumbnailWindow : Window
         if (!_targetSet) UpdateTargetMonitor();
         var wa = _targetWorkPx;
         double s = _targetScale;
-        double margin = EdgeMargin * s;
-        double gap = Gap * s;
+        // Windows carry a ShadowPad transparent margin around the card — compensate so the CARD
+        // lands at EdgeMargin/Gap. Adjacent shadow bands overlapping is fine (not hit-testable).
+        double margin = (EdgeMargin - ShadowPad) * s;
+        double gap = (Gap - 2 * ShadowPad) * s;
 
         double y = wa.Bottom - margin;           // physical px, bottom edge of work area
         for (int i = Stack.Count - 1; i >= 0; i--)
