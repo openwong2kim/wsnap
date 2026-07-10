@@ -66,8 +66,13 @@ public static class AppTheme
     {
         w.Background = Brush("Bg");
         w.FontFamily = Font;
+        // Set now (the HWND exists from the ctor) AND re-assert after Show / on activation:
+        // Avalonia's Win32 backend syncs the frame theme at Show and can override a ctor-time
+        // DWM set when the OS is in light mode — measured: the editor opened with a LIGHT
+        // caption despite this ctor-time call, while a post-show set sticks permanently.
         if (w.IsLoaded || w.PlatformImpl != null) SetDarkTitleBar(w);
-        else w.Opened += (_, _) => SetDarkTitleBar(w);
+        w.Opened += (_, _) => SetDarkTitleBar(w);
+        w.Activated += (_, _) => SetDarkTitleBar(w);
     }
 
     /// <summary>Ask DWM for a dark caption + matching caption color (Win10 1809+ / Win11) —

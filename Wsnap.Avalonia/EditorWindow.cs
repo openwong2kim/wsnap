@@ -133,11 +133,13 @@ public sealed class EditorWindow : Avalonia.Controls.Window
         root.Children.Add(canvasFrame);
         Content = root;
 
-        // Fit to screen (logical work area).
+        // Fit to screen (logical work area); never open or shrink below a usable toolbar+canvas.
         double waW = 1600, waH = 900;
         if (Screens.Primary is { } scr) { waW = scr.WorkingArea.Width / scr.Scaling; waH = scr.WorkingArea.Height / scr.Scaling; }
-        Width = Math.Min(_pw + 60, waW * 0.92);
-        Height = Math.Min(_ph + 150, waH * 0.92);
+        MinWidth = 560;
+        MinHeight = 420;
+        Width = Math.Max(Math.Min(_pw + 60, waW * 0.92), MinWidth);
+        Height = Math.Max(Math.Min(_ph + 150, waH * 0.92), MinHeight);
 
         SetTool(Tool.Arrow);
         SelectSwatch(0);
@@ -211,6 +213,9 @@ public sealed class EditorWindow : Avalonia.Controls.Window
                 Cursor = new Cursor(StandardCursorType.Hand)
             };
             sw.PointerPressed += (_, _) => { _color = c; SelectSwatch(idx); };
+            // hover feedback (selected state wins — re-asserted on exit)
+            sw.PointerEntered += (_, _) => { if (idx != _swatchSel) sw.BorderBrush = AppTheme.Brush("Muted"); };
+            sw.PointerExited += (_, _) => { if (idx != _swatchSel) sw.BorderBrush = new SolidColorBrush(AppTheme.BorderStrong); };
             _swatches.Add(sw);
             bar.Children.Add(sw);
         }
@@ -225,19 +230,33 @@ public sealed class EditorWindow : Avalonia.Controls.Window
         };
         ToolTip.SetTip(custom, L.T("ed.customColor"));
         custom.PointerPressed += (_, _) => PickCustomColor();
+        custom.PointerEntered += (_, _) => custom.Background = AppTheme.Brush("SurfaceHi");
+        custom.PointerExited += (_, _) => custom.Background = AppTheme.Brush("Surface");
         bar.Children.Add(custom);
 
-        bar.Children.Add(Sep());
+        // Actions live OUTSIDE the WrapPanel, docked right — so at narrow widths the tool
+        // cluster wraps while 복사/저장/취소 stay visible top-right instead of wrapping into
+        // the middle of a row or clipping off the window edge.
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(6, 9, 10, 8)
+        };
+        actions.Children.Add(ActionBtn(L.T("ed.copy"), "primary", () => CopyToClipboard(), L.T("ed.copyTip")));
+        actions.Children.Add(ActionBtn(L.T("ed.save"), "ghost", Save, L.T("ed.saveTip")));
+        actions.Children.Add(ActionBtn(L.T("ed.cancel"), "ghost", () => { ResultPath = null; Close(); }, L.T("ed.cancelTip")));
 
-        bar.Children.Add(ActionBtn(L.T("ed.copy"), "primary", () => CopyToClipboard(), L.T("ed.copyTip")));
-        bar.Children.Add(ActionBtn(L.T("ed.save"), "ghost", Save, L.T("ed.saveTip")));
-        bar.Children.Add(ActionBtn(L.T("ed.cancel"), "ghost", () => { ResultPath = null; Close(); }, L.T("ed.cancelTip")));
+        var dock = new DockPanel();
+        DockPanel.SetDock(actions, Dock.Right);
+        dock.Children.Add(actions);
+        dock.Children.Add(bar);
 
         return new Border
         {
             Background = AppTheme.Brush("Panel"),
             BorderBrush = new SolidColorBrush(AppTheme.Border), BorderThickness = new Thickness(0, 0, 0, 1),
-            Child = bar
+            Child = dock
         };
     }
 
@@ -283,8 +302,11 @@ public sealed class EditorWindow : Avalonia.Controls.Window
         foreach (var kv in _thickButtons) kv.Value.IsChecked = Math.Abs(kv.Key - _thickness) < 0.01;
     }
 
+    private int _swatchSel = -1;
+
     private void SelectSwatch(int idx)
     {
+        _swatchSel = idx;
         for (int i = 0; i < _swatches.Count; i++)
         {
             bool on = i == idx;
