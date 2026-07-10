@@ -59,6 +59,10 @@
          (below) and extract them at runtime, keeping distribution a true single file. -->
     <PackageReference Include="RapidOcrNet" Version="2.0.0" ExcludeAssets="contentFiles" />
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <!-- Phase 0 of the Avalonia migration: SkiaSharp is now the single image-encoding stack
+         (SkiaImage.cs) — used directly, not just transitively via RapidOcrNet. Pinned to the
+         exact version RapidOcrNet already pulls so no native binary changes. -->
+    <PackageReference Include="SkiaSharp" Version="3.119.1" />
   </ItemGroup>
 
   <ItemGroup>

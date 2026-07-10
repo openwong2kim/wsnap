@@ -379,9 +379,9 @@ public static class McpStdioServer
             g.DrawImage(src, 0, 0, w, h);
         }
 
-        using var outMs = new MemoryStream();
-        dst.Save(outMs, ImageFormat.Png);
-        return outMs.ToArray();
+        // SkiaSharp encode (Phase 0). Not forced opaque: this transcodes an existing image
+        // verbatim, so whatever alpha the source PNG carried is preserved.
+        return SkiaImage.EncodePng(dst, opaque: false);
     }
 
     private static Dictionary<string, object?> ErrorResult(string text) =>

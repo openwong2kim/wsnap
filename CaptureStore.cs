@@ -14,7 +14,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -71,7 +70,9 @@ public static class CaptureStore
     public static string SaveBitmap(Bitmap bmp, NameContext ctx)
     {
         string path = NewPath(ctx);
-        bmp.Save(path, ImageFormat.Png);
+        // SkiaSharp encode (Phase 0, replaces GDI+ Bitmap.Save). opaque: screen grabs carry
+        // no meaningful alpha — see SkiaImage.EncodePng.
+        SkiaImage.SavePng(bmp, path);
         CrashLog.Telemetry("capture-saved");
         PruneScratch();
         return path;

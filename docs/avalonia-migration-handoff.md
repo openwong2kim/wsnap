@@ -27,6 +27,7 @@ Rust/C++ 전면 재작성은 두 차례(다이어트 검토 시, 스택 재검�
 | [#44](https://github.com/openwong2kim/wsnap/pull/44) | scoop/winget 해시 갱신 | MERGED |
 | [#45](https://github.com/openwong2kim/wsnap/pull/45) | Avalonia 마이그레이션 스캐폴드 + 스파이크(a)(d) | MERGED |
 | [#46](https://github.com/openwong2kim/wsnap/pull/46) | 이 핸드오프 문서 + 스파이크(b)(c) PASS 기록 | MERGED |
+| #47 | **Phase 0**: SkiaSharp 이미징 통일(SkiaImage.cs) + 프레임워크-무관 클립보드 코어(ClipboardCore.cs) + 자체 GIF89a 인코더(GifWriter 재작성) | 작성됨 |
 
 `main`에 `Wsnap.Avalonia/` sibling 프로젝트가 존재. **release.yml은 여전히 `Wsnap.csproj`만 빌드** — Avalonia 작업은 배포에 영향 없음.
 
@@ -87,7 +88,7 @@ Avalonia 창(topmost, 고정 좌표)에서 `PointerPressed` 시 `DataFormats.Fil
 
 ## 4. 다음 세션에서 할 것 (순서대로)
 
-1. **Phase 0 착수**: SkiaSharp로 `CaptureStore.cs`(현재 GDI+)와 `ImageClipboard.cs`/`GifWriter.cs`(현재 WPF `PngBitmapEncoder`)의 이미징 스택 통일. **WPF 빌드 위에서 진행**(Avalonia와 무관), 기존 `.smoke` 스위트로 회귀 검증, v1.9.0로 독립 출시 가능.
+1. ~~**Phase 0 착수**~~ **완료(PR #47)**: 모든 PNG 인코딩이 `SkiaImage.cs`(SkiaSharp)로 통일 — `CaptureStore`(구 GDI+ `Bitmap.Save`), `ImageClipboard`(구 WPF `PngBitmapEncoder`), `McpStdioServer` 리사이즈, `Ocr`(PNG 왕복 제거, 직접 픽셀 복사). 클립보드 I/O는 프레임워크-무관 `ClipboardCore.cs`(WinForms OLE, 스파이크(b) 경로)로 분리. `GifWriter`는 WPF `GifBitmapEncoder`+바이트 패치 방식에서 **자체 GIF89a 인코더**(octree 256색 팔레트 + ppmtogif-계열 LZW + GCE/NETSCAPE 루프)로 재작성 — UI 프레임워크 의존성 0. `SkiaImage.cs`/`ClipboardCore.cs`/`GifWriter.cs`는 `Wsnap.Avalonia`에도 링크됨. 검증: `.smoke` 11/11 + 전용 하네스(PNG 픽셀/알파, JPEG 트랜스코드, GIF 프레임·딜레이·루프·그라디언트 양자화 mean err 8.76·노이즈 LZW 오버플로, 클립보드 라운드트립) 7/7 PASS. v1.9.0 독립 출시는 선택지로 남음(버전은 아직 1.8.0).
 2. **Phase 1**: Theme.cs Avalonia 재설계 + HotkeyHook 이식 (§2-6 단계 순서 참조).
 3. (Phase 2 진행 전) 실기기 멀티모니터 mixed-DPI 재검증 — §3 스파이크(d) 미해결 항목.
 
@@ -100,6 +101,7 @@ Avalonia 창(topmost, 고정 좌표)에서 `PointerPressed` 시 `DataFormats.Fil
 - **`Wsnap.csproj`(WPF)는 `Wsnap.Avalonia\`를 명시적으로 `<Compile Remove>`하고 있음** — 새 하위폴더/프로젝트를 저장소 루트에 추가할 때는 항상 WPF 프로젝트의 기본 glob이 그걸 삼키지 않는지 확인할 것(빌드는 되는데 타입 충돌 에러로 나타남, 예: 두 개의 다른 `Toast` 클래스 충돌).
 - **`Control\CommandRouter.cs`/`Control\ControlGate.cs`는 아직 `Wsnap.Avalonia`에 링크 안 됨** — `Toast.*`/`CaptureCore.*` 호출이 있어서. `Wsnap.Avalonia/ToastStub.cs`는 `Ocr.cs`의 Toast 호출 2곳만 임시로 막아주는 스텁 — **Phase 3에서 진짜 Avalonia Toast가 생기면 즉시 삭제할 것.**
 - **자체 렌더(`RenderTargetBitmap.Render(this)`) 기반 스크린샷 검증은 신뢰하지 말 것** — 실제 화면과 불일치하는 사례를 스파이크(a)에서 실측 확인. 시각적 검증은 항상 외부(별도 프로세스에서 GDI `CopyFromScreen`) 캡처로 할 것.
+- **SkiaSharp 3.x의 `SKBitmap.Decode`는 디코드 불가 바이트에 null을 반환하지 않고 `ArgumentNullException('codec')`을 던짐** — Phase 0 검증 하네스에서 실측 발견. null 체크만 믿지 말고 try/catch 필요(`SkiaImage.TranscodeToPng`에 적용됨).
 - **드래그아웃 관련 함정 3건은 §3 스파이크(c) 참조**: ①11.2엔 `DoDragDropAsync` 없음(`DoDragDrop`이 Task 반환), ②탐색기는 드롭 데이터를 비동기 추출하므로 소스 데이터 객체가 드롭 후에도 살아 있어야 함, ③`IStorageFile`은 포인터 프레스 전에 미리 해석.
 
 ---

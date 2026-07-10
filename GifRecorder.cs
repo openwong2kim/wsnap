@@ -17,8 +17,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using SkiaSharp;
 
 namespace Wsnap;
 
@@ -34,7 +34,9 @@ public sealed class GifRecorder
 
     private readonly Int32Rect _region;
     private readonly Action<string> _onSaved;
-    private readonly List<BitmapSource> _frames = new();
+    // SKBitmap (not BitmapSource) since Phase 0: frames go straight from the GDI grab into
+    // SkiaSharp buffers so the framework-agnostic GifWriter can encode them without WPF.
+    private readonly List<SKBitmap> _frames = new();
     private readonly DispatcherTimer _timer;
     private readonly int _fps;
     private readonly int _maxSeconds;
@@ -89,7 +91,7 @@ public sealed class GifRecorder
         try
         {
             using var bmp = ScreenGrab.Grab(_region.X, _region.Y, _region.Width, _region.Height);
-            _frames.Add(ScreenGrab.ToBitmapSource(bmp));
+            _frames.Add(SkiaImage.ToSKBitmap(bmp));
             if (_status != null) _status.Text = L.T("gif.recording", _frames.Count);
             if (_frames.Count >= _fps * _maxSeconds) Stop();
         }
@@ -121,6 +123,7 @@ public sealed class GifRecorder
                 CrashLog.Write("gif-save", ex);
                 Toast.Show(L.T("gif.saveFail"));
             }
+            foreach (var f in _frames) f.Dispose();   // SKBitmap holds native memory
             _frames.Clear();
         }
         finally { Finished?.Invoke(); }   // always signal the awaiting host (saved, empty, or failed)

@@ -97,29 +97,24 @@ public static class Ocr
         {
             // Windows OCR was weak on small text; PP-OCR resizes internally, but nudging genuinely
             // tiny grabs up first still helps the detector lock onto glyphs. Only ever scales UP.
-            using Bitmap prepared = UpscaleIfTiny(bmp);
-
-            byte[] png;
-            using (var ms = new MemoryStream())
-            {
-                prepared.Save(ms, ImageFormat.Png);
-                png = ms.ToArray();
-            }
+            SKBitmap sk;
+            using (Bitmap prepared = UpscaleIfTiny(bmp))
+                sk = SkiaImage.ToSKBitmap(prepared);   // direct pixel copy (Phase 0) — the old
+                                                       // path PNG-encoded with GDI+ only to
+                                                       // SKBitmap.Decode it right back
 
             OcrLanguage lang = langOverride ?? CurrentLanguage;   // per-call override or configured default
 
             // ONNX inference is synchronous and CPU-bound — keep it off the UI thread.
             return await Task.Run(() =>
             {
+                using var _ = sk;                      // dispose on every path inside the worker
                 var engine = GetEngine(lang);
                 if (engine == null) return null;       // models missing/download failed → caller shows "사용 불가"
 
                 Interlocked.Increment(ref _inFlight);
                 try
                 {
-                    using SKBitmap? sk = SKBitmap.Decode(png);
-                    if (sk == null) return "";
-
                     // Screenshots are upright, so skip 180° angle classification (faster, no false flips).
                     var options = RapidOcrOptions.Default with { DoAngle = false };
                     OcrResult result = engine.Detect(sk, options);
