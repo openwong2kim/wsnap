@@ -1,0 +1,213 @@
+<!-- wsnap — macOS-style screen capture for Windows.
+     Copyright (C) 2026 openwong2kim and wsnap contributors.  GPL-3.0 (see any .cs header).
+
+     wsnap's shared design system, Avalonia edition (Phase 1 of the migration). One source of
+     truth for color, type, radius and control styling — same tokens as the WPF Theme.cs and
+     site/index.html (dark palette + accent #3B82F6) so product and marketing match.
+
+     REDESIGN, not translation: WPF used keyed styles with ControlTemplate triggers; here the
+     Avalonia idiom is style CLASSES + pseudo-classes (Button.primary, :pointerover, :pressed,
+     :checked) layered over FluentTheme's complete dark templates, with Fluent's design tokens
+     (SystemAccentColor, TextControl*, ComboBox*) overridden to wsnap's palette. Code-behind
+     windows opt in per control: btn.Classes.Add("primary"). -->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Styles.Resources>
+    <ResourceDictionary>
+      <!-- ===== wsnap tokens (mirror the landing page :root) ===== -->
+      <Color x:Key="BgColor">#0E0F11</Color>
+      <Color x:Key="PanelColor">#16181B</Color>
+      <Color x:Key="Panel2Color">#1C1F23</Color>
+      <Color x:Key="SurfaceColor">#23262B</Color>
+      <Color x:Key="SurfaceHiColor">#2C3036</Color>
+      <Color x:Key="TextColor">#F4F5F7</Color>
+      <Color x:Key="MutedColor">#AEB1BA</Color>
+      <Color x:Key="Muted2Color">#8C909A</Color>
+      <Color x:Key="AccentColor">#3B82F6</Color>
+      <Color x:Key="AccentDeepColor">#2563EB</Color>
+
+      <SolidColorBrush x:Key="BgBrush"           Color="#0E0F11"/>
+      <SolidColorBrush x:Key="PanelBrush"        Color="#16181B"/>
+      <SolidColorBrush x:Key="Panel2Brush"       Color="#1C1F23"/>
+      <SolidColorBrush x:Key="SurfaceBrush"      Color="#23262B"/>
+      <SolidColorBrush x:Key="SurfaceHiBrush"    Color="#2C3036"/>
+      <SolidColorBrush x:Key="TextBrush"         Color="#F4F5F7"/>
+      <SolidColorBrush x:Key="MutedBrush"        Color="#AEB1BA"/>
+      <SolidColorBrush x:Key="Muted2Brush"       Color="#8C909A"/>
+      <SolidColorBrush x:Key="AccentBrush"       Color="#3B82F6"/>
+      <SolidColorBrush x:Key="AccentDeepBrush"   Color="#2563EB"/>
+      <SolidColorBrush x:Key="AccentSoftBrush"   Color="#243B82F6"/>
+      <SolidColorBrush x:Key="DangerBrush"       Color="#EF4444"/>
+      <SolidColorBrush x:Key="WarnBrush"         Color="#FBBF24"/>
+      <SolidColorBrush x:Key="SuccessBrush"      Color="#22C55E"/>
+      <SolidColorBrush x:Key="BorderBrush2"      Color="#18FFFFFF"/>
+      <SolidColorBrush x:Key="BorderStrongBrush" Color="#28FFFFFF"/>
+
+      <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI, Malgun Gothic, Apple SD Gothic Neo</FontFamily>
+
+      <!-- ===== Fluent token overrides: retint stock controls (CheckBox tick, Slider,
+           ComboBox highlight, TextBox caret/selection...) to wsnap's accent + surfaces
+           without re-templating them. Later styles win lookup, so these beat FluentTheme. -->
+      <Color x:Key="SystemAccentColor">#3B82F6</Color>
+      <Color x:Key="SystemAccentColorDark1">#2563EB</Color>
+      <Color x:Key="SystemAccentColorDark2">#1D4ED8</Color>
+      <Color x:Key="SystemAccentColorDark3">#1E40AF</Color>
+      <Color x:Key="SystemAccentColorLight1">#60A5FA</Color>
+      <Color x:Key="SystemAccentColorLight2">#93C5FD</Color>
+      <Color x:Key="SystemAccentColorLight3">#BFDBFE</Color>
+
+      <SolidColorBrush x:Key="TextControlBackground"            Color="#23262B"/>
+      <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#23262B"/>
+      <SolidColorBrush x:Key="TextControlBackgroundFocused"     Color="#23262B"/>
+      <SolidColorBrush x:Key="TextControlBorderBrush"           Color="#18FFFFFF"/>
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#28FFFFFF"/>
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused"    Color="#3B82F6"/>
+      <SolidColorBrush x:Key="TextControlForeground"            Color="#F4F5F7"/>
+      <SolidColorBrush x:Key="TextControlSelectionHighlightColor" Color="#3B82F6"/>
+
+      <SolidColorBrush x:Key="ComboBoxBackground"               Color="#23262B"/>
+      <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"    Color="#2C3036"/>
+      <SolidColorBrush x:Key="ComboBoxDropDownBackground"       Color="#1C1F23"/>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <!-- ===== window-wide defaults ===== -->
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{StaticResource BgBrush}"/>
+    <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+  </Style>
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+  </Style>
+
+  <!-- ===== primary button ===== -->
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="FontSize" Value="13.5"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="CornerRadius" Value="9"/>
+    <Setter Property="Padding" Value="16,8"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="RenderTransformOrigin" Value="50%,50%"/>
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource AccentDeepBrush}"/>
+    <Setter Property="Foreground" Value="White"/>
+  </Style>
+  <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource AccentDeepBrush}"/>
+    <Setter Property="Foreground" Value="White"/>
+  </Style>
+  <Style Selector="Button.primary:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.97)"/>
+  </Style>
+  <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+    <Setter Property="Opacity" Value="0.4"/>
+  </Style>
+
+  <!-- ===== ghost / secondary button ===== -->
+  <Style Selector="Button.ghost">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+    <Setter Property="FontSize" Value="13.5"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="CornerRadius" Value="9"/>
+    <Setter Property="Padding" Value="16,8"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+  </Style>
+  <Style Selector="Button.ghost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SurfaceHiBrush}"/>
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+  </Style>
+  <Style Selector="Button.ghost:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Opacity" Value="0.4"/>
+  </Style>
+
+  <!-- ===== subtle/icon button (toolbar) ===== -->
+  <Style Selector="Button.subtle">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="FontWeight" Value="Medium"/>
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Padding" Value="10,6"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="Button.subtle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+  </Style>
+  <Style Selector="Button.subtle:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SurfaceHiBrush}"/>
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+  </Style>
+  <Style Selector="Button.subtle:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Opacity" Value="0.35"/>
+  </Style>
+
+  <!-- ===== tool toggle (editor tools; shows active state) ===== -->
+  <Style Selector="ToggleButton.tool">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+    <Setter Property="FontSize" Value="12.5"/>
+    <Setter Property="FontWeight" Value="Medium"/>
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Padding" Value="10,6"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="ToggleButton.tool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+  </Style>
+  <Style Selector="ToggleButton.tool:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+    <Setter Property="Foreground" Value="White"/>
+  </Style>
+
+  <!-- ===== textbox: Fluent template + wsnap shape (colors come from the TextControl*
+       resource overrides above) ===== -->
+  <Style Selector="TextBox.field">
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Padding" Value="9,6"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}"/>
+    <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}"/>
+  </Style>
+
+  <!-- ===== combobox / checkbox / slider ride the Fluent token overrides; only shape here ===== -->
+  <Style Selector="ComboBox.combo">
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Padding" Value="11,7"/>
+    <Setter Property="MaxDropDownHeight" Value="340"/>
+  </Style>
+  <Style Selector="CheckBox.toggle">
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+  </Style>
+</Styles>

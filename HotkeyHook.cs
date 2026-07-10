@@ -14,6 +14,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Wsnap;
 
@@ -37,6 +38,7 @@ public sealed class HotkeyHook : IDisposable
     private readonly LowLevelKeyboardProc _proc;
     private IntPtr _hookId = IntPtr.Zero;
     private bool _installFailed;
+    private SynchronizationContext? _uiContext;
 
     /// <summary>Raised when a keystroke matches an enabled binding, carrying that binding so the
     /// handler can dispatch its <see cref="HotkeyBinding.Command"/>. Marshalled to the UI dispatcher.</summary>
@@ -49,6 +51,14 @@ public sealed class HotkeyHook : IDisposable
 
     public void Install()
     {
+        // Capture the installing (UI) thread's SynchronizationContext for marshalling Triggered.
+        // WH_KEYBOARD_LL callbacks are delivered through this thread's message loop, but the
+        // handler opens windows / runs commands, so it must be posted, not run inside the hook.
+        // Framework-agnostic on purpose (Phase 1 of the Avalonia migration): WPF installs this
+        // with a DispatcherSynchronizationContext (Post == Dispatcher.BeginInvoke, the previous
+        // behaviour) and Avalonia with its own UI context — same code serves both hosts.
+        _uiContext = SynchronizationContext.Current;
+
         using var curProcess = Process.GetCurrentProcess();
         using var curModule = curProcess.MainModule!;
         _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc,
@@ -83,10 +93,11 @@ public sealed class HotkeyHook : IDisposable
                 if (vk == b.Vk && shift == b.Shift && ctrl == b.Ctrl &&
                     alt == b.Alt && win == b.Win && b.Enabled)
                 {
-                    // Defer off the hook (BeginInvoke): a low-level hook must return fast, and the
-                    // handler opens windows / runs the command. Capturing b here is fine — cold path.
-                    System.Windows.Application.Current?.Dispatcher.BeginInvoke(
-                        () => Triggered?.Invoke(b));
+                    // Defer off the hook: a low-level hook must return fast, and the handler
+                    // opens windows / runs the command. Capturing b here is fine — cold path.
+                    // ThreadPool fallback covers hosts without a UI context (headless tests).
+                    if (_uiContext != null) _uiContext.Post(_ => Triggered?.Invoke(b), null);
+                    else ThreadPool.QueueUserWorkItem(_ => Triggered?.Invoke(b));
                     if (b.Swallow) return (IntPtr)1; // consume the chord (e.g. replaces Win+Shift+S)
                     break;                           // fired, but let the keystroke pass through
                 }

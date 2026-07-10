@@ -1,4 +1,12 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="Wsnap.App">
+             x:Class="Wsnap.App"
+             RequestedThemeVariant="Dark">
+  <!-- FluentTheme supplies complete control templates; Theme.axaml (Phase 1, the Avalonia
+       redesign of the WPF Theme.cs XAML dictionary) overrides its palette with wsnap's tokens
+       and layers wsnap's class-selector styles on top. Later entries win resource lookup. -->
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="/Theme.axaml" />
+  </Application.Styles>
 </Application>
