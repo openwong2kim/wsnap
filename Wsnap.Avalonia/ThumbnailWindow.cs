@@ -202,9 +202,12 @@ public sealed class ThumbnailWindow : Window
 
         bar.Children.Add(IconBtn("copy", L.T("thumb.copy"), CopyImage));
         bar.Children.Add(IconBtn("save", L.T("thumb.saveAs"), SaveAs));
-        // OCR is image-only. (Edit arrives with the Phase 5 EditorWindow port.)
+        // Edit + OCR are image-only — not meaningful for a video thumbnail.
         if (!_isVideo)
+        {
+            bar.Children.Add(IconBtn("edit", L.T("thumb.edit"), EditCurrent));
             bar.Children.Add(IconBtn("text", L.T("thumb.ocr"), OcrCurrent));
+        }
         bar.Children.Add(IconBtn("folder", L.T("thumb.reveal"), Reveal));
         if (Uploader.Available)
             bar.Children.Add(IconBtn("share", L.T("thumb.share"), ShareCurrent));
@@ -471,6 +474,24 @@ public sealed class ThumbnailWindow : Window
                 Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_filePath}\"") { UseShellExecute = true });
         }
         catch (Exception ex) { CrashLog.Write("reveal", ex); }
+    }
+
+    private void EditCurrent()
+    {
+        _dismiss.Stop();
+        EditorWindow ed;
+        try { ed = new EditorWindow(_filePath); }
+        catch (Exception ex) { CrashLog.Write("thumb-edit", ex); Toast.Show(L.T("ed.openFail")); return; }
+        ed.Closed += (_, _) =>
+        {
+            // Edited result pops as its own fresh thumbnail bottom-right (draggable),
+            // leaving the original in place — same flow as a new capture.
+            if (!string.IsNullOrEmpty(ed.ResultPath))
+                new ThumbnailWindow(ed.ResultPath!, edited: true).Show();
+            StartDismissIfEnabled();
+        };
+        ed.Show();
+        ed.Activate();
     }
 
     private async void OcrCurrent()

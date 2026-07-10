@@ -103,6 +103,20 @@ public partial class App : Application
                 rec.Finished += () => Dispatcher.UIThread.Post(() => desktop.Shutdown());
                 rec.Start();
             }
+            else if (desktop.Args != null && System.Array.Find(desktop.Args, a => a.StartsWith("--editor-demo=")) is string edArg)
+            {
+                // Phase 5 verification: real EditorWindow on the given image; the probe records
+                // the saved result path (or empty on cancel). In-memory settings only.
+                string demoDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wsnap_p5demo");
+                System.IO.Directory.CreateDirectory(demoDir);
+                Settings.Current.SaveFolder = demoDir;
+                Settings.Current.HistoryKeepRecent = 0;
+                var ed = new EditorWindow(edArg.Substring("--editor-demo=".Length));
+                ed.Closed += (_, _) => System.IO.File.WriteAllText(
+                    System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wsnap_p5_editor_probe.txt"),
+                    ed.ResultPath ?? "");
+                desktop.MainWindow = ed;
+            }
             else if (thumbDemo != null)
             {
                 // Phase 3 verification mode (dev-only): pop a real ThumbnailWindow for the given
