@@ -106,6 +106,9 @@ public partial class App : System.Windows.Application
         // One design system, merged once so every window inherits the dark identity.
         Resources.MergedDictionaries.Add(Theme.Dict);
 
+        // Recorders are framework-agnostic since Phase 4 — give them the WPF badge.
+        RecorderUi.BadgeFactory = (text, argb) => new RecorderBadgeWpf(text, argb);
+
         // Control layer: this tray instance is the resident host, so hotkey / tray / pipe / MCP all
         // share ONE CommandRouter + ONE ControlGate (single consent/rate-limit choke point).
         _gate = new Wsnap.Control.ControlGate();
@@ -455,7 +458,7 @@ public partial class App : System.Windows.Application
 
                 case CaptureOverlay.PostAction.Gif:
                     if (region is { } r && r.Width > 1 && r.Height > 1)
-                        new GifRecorder(r, p => { new ThumbnailWindow(p).Show(); ScheduleTrim(); }).Start();
+                        new GifRecorder(new System.Drawing.Rectangle(r.X, r.Y, r.Width, r.Height), p => { new ThumbnailWindow(p).Show(); ScheduleTrim(); }).Start();
                     break;
             }
         }
@@ -526,7 +529,7 @@ public partial class App : System.Windows.Application
         {
             _overlayOpen = false;
             if (overlay.RegionPx is { } r && r.Width > 1 && r.Height > 1)
-                new GifRecorder(r, path => { new ThumbnailWindow(path).Show(); ScheduleTrim(); }).Start();
+                new GifRecorder(new System.Drawing.Rectangle(r.X, r.Y, r.Width, r.Height), path => { new ThumbnailWindow(path).Show(); ScheduleTrim(); }).Start();
         };
         overlay.Show();
         overlay.Activate();
@@ -547,13 +550,13 @@ public partial class App : System.Windows.Application
 
             if (VideoRecorder.IsAvailable)
             {
-                new VideoRecorder(r, (path, poster) => { new ThumbnailWindow(path, poster: poster).Show(); ScheduleTrim(); }, format).Start();
+                new VideoRecorder(new System.Drawing.Rectangle(r.X, r.Y, r.Width, r.Height), (path, poster) => { new ThumbnailWindow(path, poster: poster).Show(); ScheduleTrim(); }, format).Start();
             }
             else
             {
                 // ffmpeg missing (and no download triggered yet): degrade to GIF so the capture isn't lost.
                 Toast.Show(L.T("vid.ffmpegFallback"));
-                new GifRecorder(r, path => { new ThumbnailWindow(path).Show(); ScheduleTrim(); }).Start();
+                new GifRecorder(new System.Drawing.Rectangle(r.X, r.Y, r.Width, r.Height), path => { new ThumbnailWindow(path).Show(); ScheduleTrim(); }).Start();
             }
         };
         overlay.Show();
@@ -569,7 +572,7 @@ public partial class App : System.Windows.Application
         {
             _overlayOpen = false;
             if (overlay.RegionPx is { } r && r.Width > 1 && r.Height > 1)
-                new ScrollCapture(r, path => new ThumbnailWindow(path).Show()).Start();
+                new ScrollCapture(new System.Drawing.Rectangle(r.X, r.Y, r.Width, r.Height), path => new ThumbnailWindow(path).Show()).Start();
         };
         overlay.Show();
         overlay.Activate();

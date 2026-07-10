@@ -20,11 +20,6 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Threading;
 
 namespace Wsnap;
 
@@ -43,23 +38,25 @@ public enum VideoFormat { Mp4, Apng }
 ///
 /// The capture loop runs on a background thread so the UI thread is never blocked by a frame
 /// write (a big region's BGRA row stream can be multi-MB). ffmpeg back-pressures naturally:
-/// if encoding lags, the stdin write blocks and we simply capture fewer frames. Stop is
-/// marshalled to the control window's dispatcher when it comes from the background thread.
+/// if encoding lags, the stdin write blocks and we simply capture fewer frames.
+///
+/// UI-framework-agnostic since Phase 4: the region is a plain device-px Rectangle and the
+/// "recording" pill comes from RecorderUi (host-registered badge, which marshals to its own
+/// UI thread) — so this file links into both the WPF and Avalonia builds.
 /// </summary>
 public sealed class VideoRecorder
 {
     private const int MaxSecondsMp4 = 120;
     private const int MaxSecondsApng = 30;   // APNG is lossless RGBA — grows fast, cap like GIF
 
-    private readonly Int32Rect _region;
+    private readonly Rectangle _region;
     private readonly Action<string, string?> _onSaved;
     private readonly int _fps;
     private readonly VideoFormat _format;
     private readonly int _maxSeconds;
 
     private Process? _ffmpeg;
-    private Window? _control;
-    private TextBlock? _status;
+    private IRecorderBadge? _badge;
     private Thread? _thread;
     private volatile bool _stopped;
     private int _frames;
@@ -69,7 +66,7 @@ public sealed class VideoRecorder
     /// <param name="onSaved">Invoked with (filePath, posterPath). For MP4, posterPath is a
     /// first-frame PNG so <see cref="ThumbnailWindow"/> can display it (an mp4 has no WIC image
     /// decoder). For APNG it is null — an .apng is itself a valid PNG, so WPF shows frame 1.</param>
-    public VideoRecorder(Int32Rect region, Action<string, string?> onSaved, VideoFormat format, int? fps = null)
+    public VideoRecorder(Rectangle region, Action<string, string?> onSaved, VideoFormat format, int? fps = null)
     {
         _region = region;
         _onSaved = onSaved;
@@ -189,7 +186,8 @@ public sealed class VideoRecorder
         _ffmpeg.ErrorDataReceived += (_, _) => { };
         _ffmpeg.BeginErrorReadLine();
 
-        ShowControl();
+        _badge = RecorderUi.TryShow(L.T("vid.recording0"), 0xF0C02A2A);
+        if (_badge != null) _badge.Clicked += Stop;
 
         _thread = new Thread(() => CaptureLoop(w, h)) { IsBackground = true, Name = "wsnap-video" };
         _thread.Start();
@@ -267,16 +265,7 @@ public sealed class VideoRecorder
         return _buf;
     }
 
-    private void UpdateStatus()
-    {
-        if (_status == null) return;
-        try
-        {
-            _status.Dispatcher.BeginInvoke(new Action(() =>
-                _status.Text = L.T("vid.recording", _frames)), DispatcherPriority.DataBind);
-        }
-        catch { /* window closing */ }
-    }
+    private void UpdateStatus() => _badge?.SetText(L.T("vid.recording", _frames));
 
     /// <summary>Stop capture, flush + close stdin so ffmpeg finishes the mux, wait, then hand
     /// the mp4 to the thumbnail. Safe to call from the UI thread (click/Esc) or the loop thread.</summary>
@@ -301,7 +290,7 @@ public sealed class VideoRecorder
             _ffmpeg = null;
         }
 
-        CloseControl();
+        _badge?.Close(); _badge = null;
 
         if (_failed || _frames == 0 || _outPath == null || !File.Exists(_outPath))
         {
@@ -347,50 +336,6 @@ public sealed class VideoRecorder
         catch (Exception ex) { CrashLog.Write("video-poster", ex); return null; }
     }
 
-    private void CloseControl()
-    {
-        var c = _control;
-        if (c == null) return;
-        try
-        {
-            if (c.Dispatcher.CheckAccess()) c.Close();
-            else c.Dispatcher.Invoke(new Action(c.Close));
-        }
-        catch { }
-    }
-
-    private void ShowControl()
-    {
-        _status = new TextBlock
-        {
-            Text = L.T("vid.recording0"),
-            Foreground = System.Windows.Media.Brushes.White,
-            FontSize = 13, Margin = new Thickness(12, 8, 12, 8)
-        };
-        var border = new Border
-        {
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xF0, 0xC0, 0x2A, 0x2A)),
-            Child = _status, Cursor = Cursors.Hand
-        };
-        _control = new Window
-        {
-            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
-            AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent,
-            Topmost = true, ShowInTaskbar = false, SizeToContent = SizeToContent.WidthAndHeight,
-            Content = border
-        };
-        _control.MouseLeftButtonDown += (_, _) => Stop();
-        _control.KeyDown += (_, e) => { if (e.Key == Key.Escape) Stop(); };
-        _control.Loaded += (_, _) =>
-        {
-            var wa = SystemParameters.WorkArea;
-            _control!.Left = wa.Left + (wa.Width - _control.ActualWidth) / 2;
-            _control.Top = wa.Top + 12;   // top-center, away from most capture regions
-        };
-        _control.Show();
-        _control.Activate();
-    }
 }
 
 internal static class FpsFormat

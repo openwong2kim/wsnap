@@ -32,12 +32,15 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             Settings.Load();
-            string? overlayDemo = null, thumbDemo = null;
+            // Recorders are framework-agnostic since Phase 4 — give them the Avalonia badge.
+            RecorderUi.BadgeFactory = (text, argb) => new RecorderBadge(text, argb);
+            string? overlayDemo = null, thumbDemo = null, gifDemo = null;
             if (desktop.Args != null)
                 foreach (var a in desktop.Args)
                 {
                     if (a.StartsWith("--overlay-demo=")) overlayDemo = a.Substring("--overlay-demo=".Length);
                     if (a.StartsWith("--thumb-demo=")) thumbDemo = a.Substring("--thumb-demo=".Length);
+                    if (a.StartsWith("--gif-demo=")) gifDemo = a.Substring("--gif-demo=".Length);
                 }
 
             if (desktop.Args != null && System.Array.IndexOf(desktop.Args, "--showcase") >= 0)
@@ -78,6 +81,27 @@ public partial class App : Application
                 Settings.Current.SaveFolder = demoDir;
                 Settings.Current.HistoryKeepRecent = 0;
                 desktop.MainWindow = new HistoryWindow();
+            }
+            else if (gifDemo != null)
+            {
+                // Phase 4 verification: record x,y,w,h for <sec> seconds, write the saved GIF
+                // path to a probe file, exit. Exercises the framework-agnostic GifRecorder with
+                // the Avalonia badge end-to-end. In-memory settings only.
+                var parts = gifDemo.Split(',');
+                var rect = new System.Drawing.Rectangle(
+                    int.Parse(parts[0]), int.Parse(parts[1]), int.Parse(parts[2]), int.Parse(parts[3]));
+                int sec = int.Parse(parts[4]);
+                string demoDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wsnap_p4demo");
+                System.IO.Directory.CreateDirectory(demoDir);
+                Settings.Current.SaveFolder = demoDir;
+                Settings.Current.HistoryKeepRecent = 0;
+                desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
+                string probe = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wsnap_p4_gif_probe.txt");
+                try { System.IO.File.Delete(probe); } catch { }
+                var rec = new GifRecorder(rect, p => System.IO.File.WriteAllText(probe, p),
+                                          maxSeconds: sec, showControl: true, fps: 10);
+                rec.Finished += () => Dispatcher.UIThread.Post(() => desktop.Shutdown());
+                rec.Start();
             }
             else if (thumbDemo != null)
             {

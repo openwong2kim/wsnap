@@ -45,18 +45,22 @@
     <Compile Include="..\CrashLog.cs" Link="CrashLog.cs" />
     <Compile Include="..\DxgiGrab.cs" Link="DxgiGrab.cs" />
     <Compile Include="..\FFmpegProvider.cs" Link="FFmpegProvider.cs" />
+    <Compile Include="..\GifRecorder.cs" Link="GifRecorder.cs" />
     <Compile Include="..\GifWriter.cs" Link="GifWriter.cs" />
     <Compile Include="..\HotkeyHook.cs" Link="HotkeyHook.cs" />
     <Compile Include="..\MemoryTrim.cs" Link="MemoryTrim.cs" />
     <Compile Include="..\MonitorPlacement.cs" Link="MonitorPlacement.cs" />
     <Compile Include="..\Ocr.cs" Link="Ocr.cs" />
+    <Compile Include="..\RecorderUi.cs" Link="RecorderUi.cs" />
     <Compile Include="..\ScreenGrab.cs" Link="ScreenGrab.cs" />
+    <Compile Include="..\ScrollCapture.cs" Link="ScrollCapture.cs" />
     <Compile Include="..\Settings.cs" Link="Settings.cs" />
     <Compile Include="..\SkiaImage.cs" Link="SkiaImage.cs" />
     <Compile Include="..\SingleInstance.cs" Link="SingleInstance.cs" />
     <Compile Include="..\Strings.cs" Link="Strings.cs" />
     <Compile Include="..\UpdateChecker.cs" Link="UpdateChecker.cs" />
     <Compile Include="..\Uploader.cs" Link="Uploader.cs" />
+    <Compile Include="..\VideoRecorder.cs" Link="VideoRecorder.cs" />
     <Compile Include="..\Control\AuditLog.cs" Link="Control\AuditLog.cs" />
     <Compile Include="..\Control\Command.cs" Link="Control\Command.cs" />
     <Compile Include="..\Control\CommandCatalog.cs" Link="Control\CommandCatalog.cs" />
@@ -66,10 +70,13 @@
     <Compile Include="..\Control\PipeClientRouter.cs" Link="Control\PipeClientRouter.cs" />
     <Compile Include="..\Control\PipeProtocol.cs" Link="Control\PipeProtocol.cs" />
     <Compile Include="..\Control\PipeServer.cs" Link="Control\PipeServer.cs" />
-    <!-- NOT linked yet: CommandRouter.cs + ControlGate.cs call into Toast.* and CaptureCore.*
-         (not yet ported), which are Phase 2/4 work per the migration plan. Bucketed with
-         CaptureCore.cs/CliRouter.cs into Phase 4 (Control layer) rather than stubbed here, so
-         this scaffold doesn't paper over a real cross-file dependency the plan already flagged. -->
+    <!-- Phase 4: the full control layer links now that Toast (Phase 3a) and the recorders
+         (this phase) exist on the Avalonia side. Program.Main routes `wsnap-avalonia <verb>`
+         and `wsnap-avalonia mcp` through the same headless paths as the WPF exe. -->
+    <Compile Include="..\Control\CaptureCore.cs" Link="Control\CaptureCore.cs" />
+    <Compile Include="..\Control\CliRouter.cs" Link="Control\CliRouter.cs" />
+    <Compile Include="..\Control\CommandRouter.cs" Link="Control\CommandRouter.cs" />
+    <Compile Include="..\Control\ControlGate.cs" Link="Control\ControlGate.cs" />
   </ItemGroup>
 
   <!-- RapidOcrNet + Vortice.Direct3D11 are pulled in transitively by the linked Ocr.cs / DxgiGrab.cs
