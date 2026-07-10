@@ -22,6 +22,13 @@
          AssemblyInfo build errors). Rename to "wsnap" only at the actual Phase 6 cutover. -->
     <AssemblyName>wsnap-avalonia</AssemblyName>
     <RootNamespace>Wsnap</RootNamespace>
+    <Version>1.8.0</Version>
+    <!-- Phase 6 (resident app): same PerMonitorV2 manifest + app icon as the WPF exe. Avalonia
+         would set PerMonitorV2 itself at runtime; declaring it in the manifest makes it active
+         from the first instruction (DXGI grab, WinForms Screen metrics) and matches WPF exactly. -->
+    <ApplicationManifest>..\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\wsnap.ico</ApplicationIcon>
+    <NoWarn>$(NoWarn);WFAC010</NoWarn> <!-- DPI comes from the manifest; the WinForms hint is moot. -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -77,6 +84,26 @@
     <Compile Include="..\Control\CliRouter.cs" Link="Control\CliRouter.cs" />
     <Compile Include="..\Control\CommandRouter.cs" Link="Control\CommandRouter.cs" />
     <Compile Include="..\Control\ControlGate.cs" Link="Control\ControlGate.cs" />
+    <!-- Phase 6: the resident app links the tray dark-theme renderer (pure WinForms — the
+         deliberately retained island) and the folder-OCR watcher (framework-agnostic since
+         Phase 6: SynchronizationContext marshalling + ClipboardCore). -->
+    <Compile Include="..\TrayMenuTheme.cs" Link="TrayMenuTheme.cs" />
+    <Compile Include="..\Control\FolderWatcher.cs" Link="Control\FolderWatcher.cs" />
+  </ItemGroup>
+
+  <!-- Phase 6: same embedded assets as Wsnap.csproj — tray icon, community locale packs, and
+       the small language-agnostic OCR det+cls models (Ocr.cs extracts them at runtime). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\wsnap.ico" Link="wsnap.ico" />
+    <EmbeddedResource Include="..\locales\*.json" Exclude="..\locales\en.json">
+      <LogicalName>wsnap.locale.%(Filename).json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\models\v5\ch_PP-OCRv5_mobile_det.onnx">
+      <LogicalName>wsnap.ocr.det.onnx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\models\v5\ch_ppocr_mobile_v2.0_cls_infer.onnx">
+      <LogicalName>wsnap.ocr.cls.onnx</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <!-- RapidOcrNet + Vortice.Direct3D11 are pulled in transitively by the linked Ocr.cs / DxgiGrab.cs

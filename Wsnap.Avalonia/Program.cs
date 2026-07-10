@@ -17,11 +17,11 @@ using Avalonia;
 namespace Wsnap;
 
 /// <summary>
-/// Scaffold-only entry point for the Avalonia UI migration (plans/humming-meandering-aurora.md).
-/// Proves the 24 UI-framework-agnostic files (Ocr.cs, Settings.cs, CaptureStore.cs, Control\*,
-/// etc. — linked, not copied, from ..\) compile and link correctly under Avalonia's SDK/package
-/// set. Real windows (CaptureOverlay, EditorWindow, ...) land in later migration phases; this is
-/// deliberately just enough to build and boot.
+/// Entry point for the Avalonia app (plans/humming-meandering-aurora.md). Same contract as the
+/// WPF exe's Main: <c>mcp</c>/CLI verbs run headless without the tray app; anything else boots
+/// the Avalonia lifetime — since Phase 6 a bare launch is the RESIDENT tray app, guarded by
+/// the same SingleInstance mutex the WPF exe uses (re-running the exe = "take a shot", and the
+/// WPF and Avalonia residents can never run side by side fighting over hotkeys).
 /// </summary>
 public static class Program
 {
@@ -51,7 +51,25 @@ public static class Program
             }
         }
 
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception ex) CrashLog.Write("domain-unhandled", ex);
+        };
+
+        // One resident instance only (shared mutex with the WPF exe, on purpose). A second
+        // launch tells the running one to capture, then exits. Dev-only harness modes
+        // (--showcase / the --*-demo flags other than --resident-demo) skip the mutex so they
+        // can run beside a live resident.
+        bool resident = !Array.Exists(args, a =>
+            a == "--showcase" || (a.Contains("-demo") && !a.StartsWith("--resident-demo", StringComparison.Ordinal)));
+        if (resident)
+        {
+            bool primary = SingleInstance.TryAcquire(() => App.Instance?.OnSecondLaunch());
+            if (!primary) return;
+        }
+
+        try { BuildAvaloniaApp().StartWithClassicDesktopLifetime(args); }
+        finally { if (resident) SingleInstance.Release(); }
     }
 
     /// <summary>The router a CLI/MCP client process uses: delegate to the running tray instance
