@@ -37,12 +37,15 @@
     <Compile Include="..\AudioDevices.cs" Link="AudioDevices.cs" />
     <Compile Include="..\AutoStart.cs" Link="AutoStart.cs" />
     <Compile Include="..\CaptureStore.cs" Link="CaptureStore.cs" />
+    <Compile Include="..\ClipboardCore.cs" Link="ClipboardCore.cs" />
     <Compile Include="..\CrashLog.cs" Link="CrashLog.cs" />
     <Compile Include="..\DxgiGrab.cs" Link="DxgiGrab.cs" />
     <Compile Include="..\FFmpegProvider.cs" Link="FFmpegProvider.cs" />
+    <Compile Include="..\GifWriter.cs" Link="GifWriter.cs" />
     <Compile Include="..\MemoryTrim.cs" Link="MemoryTrim.cs" />
     <Compile Include="..\Ocr.cs" Link="Ocr.cs" />
     <Compile Include="..\Settings.cs" Link="Settings.cs" />
+    <Compile Include="..\SkiaImage.cs" Link="SkiaImage.cs" />
     <Compile Include="..\SingleInstance.cs" Link="SingleInstance.cs" />
     <Compile Include="..\Strings.cs" Link="Strings.cs" />
     <Compile Include="..\UpdateChecker.cs" Link="UpdateChecker.cs" />
@@ -67,6 +70,8 @@
   <ItemGroup>
     <PackageReference Include="RapidOcrNet" Version="2.0.0" ExcludeAssets="contentFiles" />
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <!-- Same pin as Wsnap.csproj: SkiaImage.cs/GifWriter.cs (linked above) use SkiaSharp directly. -->
+    <PackageReference Include="SkiaSharp" Version="3.119.1" />
   </ItemGroup>
 
 </Project>
