@@ -32,9 +32,34 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             Settings.Load();
+            string? overlayDemo = null;
+            if (desktop.Args != null)
+                foreach (var a in desktop.Args)
+                    if (a.StartsWith("--overlay-demo=")) overlayDemo = a.Substring("--overlay-demo=".Length);
+
             if (desktop.Args != null && System.Array.IndexOf(desktop.Args, "--showcase") >= 0)
             {
                 desktop.MainWindow = new DevShowcase();
+            }
+            else if (overlayDemo != null)
+            {
+                // Phase 2 verification mode (dev-only): open the ported CaptureOverlay and dump
+                // its outcome to a probe file for the external harness. All Settings mutations
+                // are in-memory (never saved) so the user's real config is untouched.
+                string demoDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wsnap_p2demo");
+                System.IO.Directory.CreateDirectory(demoDir);
+                Settings.Current.SaveFolder = demoDir;
+                Settings.Current.HistoryKeepRecent = 0;   // don't prune the demo dir
+                Settings.Current.PostCaptureToolbar = overlayDemo == "toolbar";
+                var ov = new CaptureOverlay(overlayDemo == "region" ? CaptureMode.Region : CaptureMode.Capture);
+                ov.Closed += (_, _) =>
+                {
+                    var r = ov.RegionPx;
+                    System.IO.File.WriteAllText(
+                        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wsnap_p2_overlay_probe.txt"),
+                        $"{ov.Action}|{(r == null ? "" : $"{r.Value.X},{r.Value.Y},{r.Value.Width},{r.Value.Height}")}|{ov.ResultPath}");
+                };
+                desktop.MainWindow = ov;
             }
             else
             {

@@ -48,9 +48,10 @@ internal static class MonitorPlacement
         }
         catch
         {
-            // Primary work area; logical ≈ physical on the primary so this stays usable.
-            var wa = System.Windows.SystemParameters.WorkArea;
-            return (new System.Drawing.Rectangle((int)wa.Left, (int)wa.Top, (int)wa.Width, (int)wa.Height), 1.0);
+            // Primary work area (WinForms — physical px, and framework-agnostic so this file
+            // links into Wsnap.Avalonia unchanged; the old fallback used WPF SystemParameters).
+            var wa = WinForms.Screen.PrimaryScreen?.WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1920, 1080);
+            return (wa, 1.0);
         }
     }
 

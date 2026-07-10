@@ -41,13 +41,16 @@
     <Compile Include="..\AutoStart.cs" Link="AutoStart.cs" />
     <Compile Include="..\CaptureStore.cs" Link="CaptureStore.cs" />
     <Compile Include="..\ClipboardCore.cs" Link="ClipboardCore.cs" />
+    <Compile Include="..\ClipboardWatcher.cs" Link="ClipboardWatcher.cs" />
     <Compile Include="..\CrashLog.cs" Link="CrashLog.cs" />
     <Compile Include="..\DxgiGrab.cs" Link="DxgiGrab.cs" />
     <Compile Include="..\FFmpegProvider.cs" Link="FFmpegProvider.cs" />
     <Compile Include="..\GifWriter.cs" Link="GifWriter.cs" />
     <Compile Include="..\HotkeyHook.cs" Link="HotkeyHook.cs" />
     <Compile Include="..\MemoryTrim.cs" Link="MemoryTrim.cs" />
+    <Compile Include="..\MonitorPlacement.cs" Link="MonitorPlacement.cs" />
     <Compile Include="..\Ocr.cs" Link="Ocr.cs" />
+    <Compile Include="..\ScreenGrab.cs" Link="ScreenGrab.cs" />
     <Compile Include="..\Settings.cs" Link="Settings.cs" />
     <Compile Include="..\SkiaImage.cs" Link="SkiaImage.cs" />
     <Compile Include="..\SingleInstance.cs" Link="SingleInstance.cs" />

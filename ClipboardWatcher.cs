@@ -15,22 +15,27 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media.Imaging;
 
 namespace Wsnap;
 
 /// <summary>
 /// v1.1 clipboard-detection mode: when ANY tool copies an image to the clipboard,
-/// wsnap pops a thumbnail for it too. Uses a message-only window + clipboard listener.
-/// Toggled by <see cref="Settings.ClipboardWatch"/>.
+/// wsnap pops a thumbnail for it too. Toggled by <see cref="Settings.ClipboardWatch"/>.
+///
+/// UI-framework-agnostic since Phase 2 of the Avalonia migration: the WPF HwndSource is
+/// replaced with a raw Win32 message-only window (create/dispatch on the UI thread, whose
+/// message loop both WPF and Avalonia pump), and reading/decoding goes through
+/// <see cref="ClipboardCore"/>/<see cref="SkiaImage"/> instead of WPF's Clipboard +
+/// PngBitmapEncoder. FileDrop formats are deliberately ignored (a plain file copy in
+/// Explorer is not an "image copy" — matches the old CF_DIB-only behaviour).
 /// </summary>
 public sealed class ClipboardWatcher : IDisposable
 {
     private const int WM_CLIPBOARDUPDATE = 0x031D;
+    private static readonly IntPtr HWND_MESSAGE = new(-3);
 
-    private HwndSource? _src;
+    private IntPtr _hwnd;
+    private WndProcDelegate? _wndProc;   // held so the marshaled callback isn't GC'd
     private uint _lastSeq;
     private readonly Action<string> _onImage;
 
@@ -44,30 +49,38 @@ public sealed class ClipboardWatcher : IDisposable
 
     public void Start()
     {
-        if (_src != null) return;
-        var p = new HwndSourceParameters("wsnap.clipboard")
+        if (_hwnd != IntPtr.Zero) return;
+        _wndProc = WndProc;
+        var cls = new WNDCLASSW
         {
-            Width = 0, Height = 0, WindowStyle = 0,
-            ParentWindow = new IntPtr(-3)   // HWND_MESSAGE: message-only window
+            lpszClassName = "wsnap.clipboard." + Environment.CurrentManagedThreadId,
+            lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProc),
+            hInstance = GetModuleHandleW(null),
         };
-        _src = new HwndSource(p);
-        _src.AddHook(WndProc);
-        AddClipboardFormatListener(_src.Handle);
+        RegisterClassW(ref cls);   // idempotent enough: same-name re-register fails, CreateWindow still finds it
+        _hwnd = CreateWindowExW(0, cls.lpszClassName, "wsnap.clipboard", 0,
+                                0, 0, 0, 0, HWND_MESSAGE, IntPtr.Zero, cls.hInstance, IntPtr.Zero);
+        if (_hwnd == IntPtr.Zero)
+        {
+            CrashLog.Write($"clipwatch-create-failed: GetLastError={Marshal.GetLastWin32Error()}");
+            return;
+        }
+        AddClipboardFormatListener(_hwnd);
         _lastSeq = GetClipboardSequenceNumber();
     }
 
     public void Stop()
     {
-        if (_src == null) return;
-        try { RemoveClipboardFormatListener(_src.Handle); } catch { }
-        _src.RemoveHook(WndProc);
-        _src.Dispose();
-        _src = null;
+        if (_hwnd == IntPtr.Zero) return;
+        try { RemoveClipboardFormatListener(_hwnd); } catch { }
+        DestroyWindow(_hwnd);
+        _hwnd = IntPtr.Zero;
+        _wndProc = null;
     }
 
     public void SetEnabled(bool on) { if (on) Start(); else Stop(); }
 
-    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr w, IntPtr l, ref bool handled)
+    private IntPtr WndProc(IntPtr hwnd, uint msg, IntPtr w, IntPtr l)
     {
         if (msg == WM_CLIPBOARDUPDATE)
         {
@@ -78,22 +91,21 @@ public sealed class ClipboardWatcher : IDisposable
                 if (Interlocked.Exchange(ref _suppress, 0) == 1) return IntPtr.Zero; // our own write
                 TryCaptureImage();
             }
+            return IntPtr.Zero;
         }
-        return IntPtr.Zero;
+        return DefWindowProcW(hwnd, msg, w, l);
     }
 
     private void TryCaptureImage()
     {
         try
         {
-            if (!System.Windows.Clipboard.ContainsImage()) return;
-            var img = System.Windows.Clipboard.GetImage();
-            if (img == null) return;
+            // PNG stream first (alpha kept), then CF_DIB re-encoded — both already PNG bytes.
+            byte[]? png = ClipboardCore.TryReadImageBytes(includeFileDrop: false);
+            if (png == null) return;
 
             string path = CaptureStore.NewPath();
-            var enc = new PngBitmapEncoder();
-            enc.Frames.Add(BitmapFrame.Create(img));
-            using (var fs = File.Create(path)) enc.Save(fs);
+            File.WriteAllBytes(path, png);
 
             CrashLog.Telemetry("clipboard-capture");
             _onImage(path);
@@ -103,6 +115,29 @@ public sealed class ClipboardWatcher : IDisposable
 
     public void Dispose() => Stop();
 
+    private delegate IntPtr WndProcDelegate(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WNDCLASSW
+    {
+        public uint style;
+        public IntPtr lpfnWndProc;
+        public int cbClsExtra, cbWndExtra;
+        public IntPtr hInstance, hIcon, hCursor, hbrBackground;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpszMenuName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string lpszClassName;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern ushort RegisterClassW(ref WNDCLASSW cls);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateWindowExW(uint exStyle, string cls, string name, uint style,
+        int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr inst, IntPtr param);
+    [DllImport("user32.dll")] private static extern bool DestroyWindow(IntPtr hwnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr DefWindowProcW(IntPtr hwnd, uint msg, IntPtr w, IntPtr l);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr GetModuleHandleW(string? name);
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool AddClipboardFormatListener(IntPtr hwnd);
     [DllImport("user32.dll", SetLastError = true)]
