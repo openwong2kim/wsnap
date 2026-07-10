@@ -3,6 +3,30 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.9.0] - 2026-07-10
+
+The preview release. wsnap's next UI stack ships today as an **opt-in preview** — the same app,
+rebuilt on Avalonia — while the trusty WPF build stays the default you install and update.
+
+### Added — Avalonia preview (`wsnap-avalonia.exe`)
+- **The whole app, ported to Avalonia UI** (Skia rendering — the same path ShareX's own rewrite
+  is taking): capture overlay with loupe and window detection, editor (12 tools, undo/redo,
+  crop), thumbnails, history, settings, toasts, GIF/video/scroll recorders, OCR, i18n, the dark
+  tray, and the full CLI/MCP control layer. Feature parity with the WPF build, verified
+  screen-pixel-by-pixel along the way.
+- **Runs side-by-side** with regular wsnap: a portable exe with its own name, sharing the
+  single-instance guard — only one resident app at a time, so hotkeys never fight. Download it,
+  run it, and your existing settings, history, and hotkeys just work (same config).
+- **Preview status:** unsigned portable exe, no installer yet. If the preview holds up, Avalonia
+  becomes the default in an upcoming release. Found something off? Open an issue.
+
+### Changed
+- **PNG encoding unified on SkiaSharp** (already bundled for OCR) — capture saves, clipboard
+  writes, and MCP resizes all use one image stack now instead of three.
+- **GIF recording uses wsnap's own GIF89a encoder** (octree palette + proper LZW) instead of the
+  WPF encoder plus byte patching — same files, one less framework dependency, and measurably
+  better gradient quantization.
+
 ## [1.8.0] - 2026-07-10
 
 The diet release. Same features, roughly **half the memory** and a capture that fires the

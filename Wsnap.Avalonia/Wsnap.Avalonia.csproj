@@ -22,7 +22,7 @@
          AssemblyInfo build errors). Rename to "wsnap" only at the actual Phase 6 cutover. -->
     <AssemblyName>wsnap-avalonia</AssemblyName>
     <RootNamespace>Wsnap</RootNamespace>
-    <Version>1.8.0</Version>
+    <Version>1.9.0</Version>
     <!-- Phase 6 (resident app): same PerMonitorV2 manifest + app icon as the WPF exe. Avalonia
          would set PerMonitorV2 itself at runtime; declaring it in the manifest makes it active
          from the first instruction (DXGI grab, WinForms Screen metrics) and matches WPF exactly. -->
@@ -114,5 +114,12 @@
     <!-- Same pin as Wsnap.csproj: SkiaImage.cs/GifWriter.cs (linked above) use SkiaSharp directly. -->
     <PackageReference Include="SkiaSharp" Version="3.119.1" />
   </ItemGroup>
+
+  <!-- Same as Wsnap.csproj: RapidOcrNet.targets copies its model set loose into the publish dir;
+       we embed our own models and extract at runtime, so drop the dead weight after its copy. -->
+  <Target Name="WsnapAvDropLoosePublishModels" AfterTargets="CopyModelsPublish">
+    <RemoveDir Directories="$(PublishDir)models" />
+    <Delete Files="$(PublishDir)onnxruntime.lib;$(PublishDir)onnxruntime_providers_shared.lib" />
+  </Target>
 
 </Project>
