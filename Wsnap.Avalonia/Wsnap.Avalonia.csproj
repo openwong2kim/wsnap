@@ -22,7 +22,7 @@
          AssemblyInfo build errors). Rename to "wsnap" only at the actual Phase 6 cutover. -->
     <AssemblyName>wsnap-avalonia</AssemblyName>
     <RootNamespace>Wsnap</RootNamespace>
-    <Version>1.9.0</Version>
+    <Version>1.9.1</Version>
     <!-- Phase 6 (resident app): same PerMonitorV2 manifest + app icon as the WPF exe. Avalonia
          would set PerMonitorV2 itself at runtime; declaring it in the manifest makes it active
          from the first instruction (DXGI grab, WinForms Screen metrics) and matches WPF exactly. -->

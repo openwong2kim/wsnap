@@ -75,6 +75,8 @@ public sealed class ThumbnailWindow : Window
     private readonly Border _actionBar;
     private readonly Border _root;
     private readonly Border? _badge;
+    private readonly Border _countdown;
+    private readonly ScaleTransform _countScale = new(1, 1);
     private ToggleButton _pinBtn = null!;
     private readonly DispatcherTimer _dismiss;
     private readonly TranslateTransform _slide = new();
@@ -140,9 +142,27 @@ public sealed class ThumbnailWindow : Window
             };
         }
 
+        // Auto-dismiss countdown: a thin accent bar along the card bottom that shrinks
+        // left-to-right over AutoDismissSeconds, so the remaining display time is visible.
+        // Hidden while hovered (the timer pauses), when pinned, and when auto-dismiss is off.
+        _countdown = new Border
+        {
+            Height = 3,
+            CornerRadius = new CornerRadius(1.5),
+            Margin = new Thickness(10, 0, 10, 6),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = new SolidColorBrush(Avalonia.Media.Color.FromArgb(0xB4, AppTheme.Accent.R, AppTheme.Accent.G, AppTheme.Accent.B)),
+            RenderTransform = _countScale,
+            RenderTransformOrigin = new RelativePoint(0, 0.5, RelativeUnit.Relative),
+            IsHitTestVisible = false,
+            IsVisible = false
+        };
+
         var grid = new Grid();
         grid.Children.Add(_img);
         if (_badge != null) grid.Children.Add(_badge);
+        grid.Children.Add(_countdown);
         grid.Children.Add(_actionBar);
 
         _root = new Border
@@ -180,6 +200,7 @@ public sealed class ThumbnailWindow : Window
         PointerEntered += (_, _) =>
         {
             _dismiss?.Stop();
+            StopCountdown();
             FadeBar(true);
             if (_badge != null) _badge.IsVisible = false;
         };
@@ -205,6 +226,10 @@ public sealed class ThumbnailWindow : Window
             Reflow();
             PlayPop();
             ResolveDragFile();
+            _openedOnce = true;
+            // The ctor-time StartDismissIfEnabled ran before the visual tree could animate —
+            // kick the countdown bar now that the window is live.
+            if (_dismiss.IsEnabled) StartCountdown(Settings.Current.AutoDismissSeconds);
         };
         ScalingChanged += (_, _) => Dispatcher.UIThread.Post(Reflow, DispatcherPriority.Background);
         StartDismissIfEnabled();
@@ -387,6 +412,33 @@ public sealed class ThumbnailWindow : Window
         if (IsPointerOver) return;
         _dismiss.Interval = TimeSpan.FromSeconds(Settings.Current.AutoDismissSeconds);
         _dismiss.Start();
+        if (_openedOnce) StartCountdown(Settings.Current.AutoDismissSeconds);
+    }
+
+    private bool _openedOnce;
+
+    /// <summary>Animate the countdown bar full → empty over the dismiss interval (linear).</summary>
+    private void StartCountdown(double seconds)
+    {
+        _countScale.Transitions = null;      // reset instantly, no easing from the old value
+        _countScale.ScaleX = 1;
+        _countdown.IsVisible = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_countdown.IsVisible) return;   // hover/pin got there first
+            _countScale.Transitions = new Transitions
+            {
+                new DoubleTransition { Property = ScaleTransform.ScaleXProperty, Duration = TimeSpan.FromSeconds(seconds) }
+            };
+            _countScale.ScaleX = 0;
+        }, DispatcherPriority.Background);
+    }
+
+    private void StopCountdown()
+    {
+        _countScale.Transitions = null;
+        _countScale.ScaleX = 1;
+        _countdown.IsVisible = false;
     }
 
     private void SetPinned(bool on)
@@ -395,6 +447,7 @@ public sealed class ThumbnailWindow : Window
         if (on)
         {
             _dismiss.Stop();
+            StopCountdown();
             string moved = CaptureStore.PromoteToPinned(_filePath);
             if (!string.Equals(moved, _filePath, StringComparison.OrdinalIgnoreCase))
             {
