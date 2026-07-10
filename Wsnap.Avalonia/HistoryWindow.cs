@@ -1,0 +1,373 @@
+// wsnap — macOS-style screen capture for Windows.
+// Copyright (C) 2026 openwong2kim and wsnap contributors.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License version 3, as published
+// by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+// or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+// for more details. You should have received a copy of the GNU General
+// Public License along with this program. If not, see
+// <https://www.gnu.org/licenses/>.
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
+
+namespace Wsnap;
+
+/// <summary>
+/// Capture history gallery — Avalonia port (Phase 3b) of the WPF HistoryWindow: browse,
+/// re-copy, reveal, open, delete, and DRAG any past shot out as a real file. Reads the
+/// scratch folder + date subfolders + pinned folder via CaptureStore.EnumerateHistory.
+/// Singleton, themed, light (scaled-decode thumbnails).
+/// (재편집 액션은 Phase 5의 EditorWindow 이식 때 추가 — WPF 파일과의 의도적 차이.)
+/// Drag-out follows spike (c): the IStorageFile payload is resolved on tile hover, ahead
+/// of the press — resolving inside the press handler is too late.
+/// </summary>
+public sealed class HistoryWindow : Window
+{
+    private sealed record HistoryItem(string Path, DateTime When, bool Pinned);
+
+    private const double TileW = 200, TileGap = 14;
+
+    private static HistoryWindow? _open;
+
+    private readonly WrapPanel _grid;
+    private readonly ScrollViewer _scroller;
+    private readonly TextBlock _count;
+    private readonly Border _empty;
+    private List<HistoryItem> _all = new();
+
+    public static void ShowSingleton()
+    {
+        if (_open != null) { _open.Activate(); return; }
+        _open = new HistoryWindow();
+        _open.Closed += (_, _) => _open = null;
+        _open.Show();
+        _open.Activate();
+    }
+
+    public HistoryWindow()
+    {
+        Title = L.T("hist.title");
+        Width = 920; Height = 620; MinWidth = 560; MinHeight = 360;
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        AppTheme.Apply(this);
+
+        // header
+        var title = new TextBlock { Text = L.T("hist.header"), FontSize = 20, FontWeight = FontWeight.Bold, Foreground = AppTheme.Brush("Text"), VerticalAlignment = VerticalAlignment.Center };
+        _count = new TextBlock { Foreground = AppTheme.Brush("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        var right = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        right.Children.Add(_count);
+        right.Children.Add(HeaderBtn(L.T("hist.refresh"), Reload));
+        right.Children.Add(HeaderBtn(L.T("hist.openFolder"), OpenFolder));
+        var headerGrid = new Grid { Margin = new Thickness(18, 12, 18, 12) };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(title, 0); headerGrid.Children.Add(title);
+        Grid.SetColumn(right, 1); headerGrid.Children.Add(right);
+        var header = new Border
+        {
+            Background = AppTheme.Brush("Panel"),
+            BorderBrush = new SolidColorBrush(AppTheme.Border), BorderThickness = new Thickness(0, 0, 0, 1),
+            Child = headerGrid
+        };
+
+        // gallery
+        _grid = new WrapPanel { Orientation = Orientation.Horizontal };
+        _scroller = new ScrollViewer
+        {
+            Content = _grid,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            Padding = new Thickness(18), Focusable = false
+        };
+
+        _empty = BuildEmptyState();
+
+        var center = new Grid();
+        center.Children.Add(_scroller);
+        center.Children.Add(_empty);
+
+        var root = new DockPanel();
+        DockPanel.SetDock(header, Dock.Top);
+        root.Children.Add(header);
+        root.Children.Add(center);
+        Content = root;
+
+        KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.F5) Reload();
+            else if (e.Key == Key.Escape) Close();
+        };
+
+        Reload();
+    }
+
+    private Button HeaderBtn(string text, Action onClick)
+    {
+        var b = new Button { Content = text, Margin = new Thickness(6, 0, 0, 0), MinWidth = 84 };
+        b.Classes.Add("ghost");
+        b.Click += (_, _) => onClick();
+        return b;
+    }
+
+    private Border BuildEmptyState()
+    {
+        var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        sp.Children.Add(new Border { Child = Icons.Make("folder", 44, AppTheme.Brush("Muted2")), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 14) });
+        sp.Children.Add(new TextBlock { Text = L.T("hist.empty"), Foreground = AppTheme.Brush("Muted"), FontSize = 15, HorizontalAlignment = HorizontalAlignment.Center });
+        sp.Children.Add(new TextBlock { Text = L.T("hist.emptyHint"), Foreground = AppTheme.Brush("Muted2"), FontSize = 12.5, Margin = new Thickness(0, 6, 0, 16), HorizontalAlignment = HorizontalAlignment.Center });
+        var open = new Button { Content = L.T("hist.openSettings"), HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 96 };
+        open.Classes.Add("ghost");
+        open.Click += (_, _) => SettingsWindow.ShowSingleton(() => { });
+        sp.Children.Add(open);
+        return new Border { Child = sp, IsVisible = false };
+    }
+
+    private void OpenFolder()
+    {
+        try
+        {
+            string dir = Settings.Current.SaveFolder;
+            Directory.CreateDirectory(dir);
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex) { CrashLog.Write("history-openfolder", ex); }
+    }
+
+    private void Reload()
+    {
+        _all = CaptureStore.EnumerateHistory()
+            .Select(t => new HistoryItem(t.Path, t.When, t.Pinned))
+            .ToList();
+
+        _grid.Children.Clear();
+        foreach (var it in _all) _grid.Children.Add(BuildTile(it));
+
+        _count.Text = _all.Count == 0 ? "" : L.T("hist.count", _all.Count);
+        _empty.IsVisible = _all.Count == 0;
+        _scroller.IsVisible = _all.Count != 0;
+    }
+
+    private Border BuildTile(HistoryItem it)
+    {
+        var img = new Image { Stretch = Stretch.Uniform, Height = 140, IsHitTestVisible = false };
+        var src = LoadThumb(it.Path);
+        Avalonia.Controls.Control picture;
+        if (src != null) { img.Source = src; picture = img; }
+        else picture = new Border { Height = 140, Child = Icons.Make("folder", 30, AppTheme.Brush("Muted2")) };
+
+        var caption = new TextBlock
+        {
+            Text = (it.Pinned ? "📌 " : "") + Trunc(Path.GetFileName(it.Path), 22) + "   " + it.When.ToString("MM-dd HH:mm"),
+            Foreground = AppTheme.Brush("Muted"), FontSize = 11, Margin = new Thickness(4, 4, 4, 2),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+
+        var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 2) };
+        bar.Children.Add(IconBtn("copy", L.T("hist.copy"), () => CopyImage(it)));
+        bar.Children.Add(IconBtn("folder", L.T("hist.reveal"), () => Reveal(it)));
+        bar.Children.Add(IconBtn("open", L.T("hist.open"), () => OpenFile(it)));
+        bar.Children.Add(IconBtn("trash", L.T("hist.delete"), () => Delete(it), danger: true));
+        var barWrap = new Border
+        {
+            VerticalAlignment = VerticalAlignment.Bottom, Height = 30, CornerRadius = new CornerRadius(0, 0, 6, 6),
+            Background = new SolidColorBrush(Avalonia.Media.Color.FromArgb(0xE6, 0x12, 0x13, 0x15)),
+            Child = bar, Opacity = 0, IsHitTestVisible = false,
+            Transitions = new Transitions
+            {
+                new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(130) }
+            }
+        };
+
+        var picGrid = new Grid();
+        picGrid.Children.Add(picture);
+        picGrid.Children.Add(barWrap);
+
+        var stack = new StackPanel();
+        stack.Children.Add(picGrid);
+        stack.Children.Add(caption);
+
+        var tile = new Border
+        {
+            Width = TileW, CornerRadius = new CornerRadius(10),
+            Background = new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x12, 0x13, 0x15)),
+            BorderBrush = it.Pinned ? AppTheme.Brush("Accent") : new SolidColorBrush(AppTheme.Border),
+            BorderThickness = new Thickness(1), Padding = new Thickness(4),
+            Margin = new Thickness(0, 0, TileGap, TileGap), Cursor = new Cursor(StandardCursorType.Hand),
+            Child = stack
+        };
+
+        // Drag-out payload, resolved on hover — before any press can start (spike (c)).
+        IStorageFile? dragFile = null;
+        tile.PointerEntered += async (_, _) =>
+        {
+            barWrap.Opacity = 1; barWrap.IsHitTestVisible = true;
+            if (dragFile == null && File.Exists(it.Path))
+                try { dragFile = await StorageProvider.TryGetFileFromPathAsync(it.Path); } catch { }
+        };
+        tile.PointerExited += (_, _) => { barWrap.IsHitTestVisible = false; barWrap.Opacity = 0; };
+
+        // click = copy image, Ctrl+click = copy path, drag = FileDrop out
+        bool maybeDrag = false; Avalonia.Point ds = default;
+        tile.PointerPressed += (_, e) =>
+        {
+            if (e.GetCurrentPoint(tile).Properties.IsLeftButtonPressed) { ds = e.GetPosition(tile); maybeDrag = true; }
+        };
+        tile.PointerMoved += async (_, e) =>
+        {
+            if (!maybeDrag || !e.GetCurrentPoint(tile).Properties.IsLeftButtonPressed) return;
+            var p = e.GetPosition(tile);
+            if (Math.Abs(p.X - ds.X) < 4 && Math.Abs(p.Y - ds.Y) < 4) return;
+            maybeDrag = false;
+            if (dragFile != null && File.Exists(it.Path))
+            {
+                var d = new DataObject();
+                d.Set(DataFormats.Files, new[] { dragFile });
+                await DragDrop.DoDragDrop(e, d, DragDropEffects.Copy);
+            }
+        };
+        tile.PointerReleased += (_, e) =>
+        {
+            if (!maybeDrag || e.InitialPressMouseButton != MouseButton.Left) return;
+            maybeDrag = false;
+            if ((e.KeyModifiers & KeyModifiers.Control) != 0) { ClipboardCore.CopyTextSuppressed(it.Path); Toast.Show(L.T("hist.pathCopied")); }
+            else CopyImage(it);
+        };
+
+        // context menu mirrors the action bar
+        var cm = new ContextMenu();
+        cm.Items.Add(Menu(L.T("hist.copy"), () => CopyImage(it)));
+        cm.Items.Add(Menu(L.T("hist.reveal"), () => Reveal(it)));
+        cm.Items.Add(Menu(L.T("hist.open"), () => OpenFile(it)));
+        cm.Items.Add(new Separator());
+        cm.Items.Add(Menu(L.T("hist.delete"), () => Delete(it)));
+        tile.ContextMenu = cm;
+
+        return tile;
+    }
+
+    private static MenuItem Menu(string text, Action onClick)
+    {
+        var m = new MenuItem { Header = text };
+        m.Click += (_, _) => onClick();
+        return m;
+    }
+
+    private Button IconBtn(string icon, string tip, Action onClick, bool danger = false)
+    {
+        var b = new Button
+        {
+            Width = 26, Height = 26, Padding = new Thickness(0),
+            Margin = new Thickness(1, 0, 1, 0), Content = Icons.Make(icon, 14, AppTheme.Brush("Muted")),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
+        b.Classes.Add("subtle");
+        ToolTip.SetTip(b, tip);
+        b.PointerEntered += (_, _) => b.Content = Icons.Make(icon, 14, danger ? AppTheme.Brush("Danger") : AppTheme.Brush("Text"));
+        b.PointerExited += (_, _) => b.Content = Icons.Make(icon, 14, AppTheme.Brush("Muted"));
+        b.Click += (_, e) => { e.Handled = true; onClick(); };
+        return b;
+    }
+
+    private static Bitmap? LoadThumb(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return null;
+            using var fs = File.OpenRead(path);
+            return Bitmap.DecodeToWidth(fs, 220);
+        }
+        catch { return null; }
+    }
+
+    private static string Trunc(string s, int n) => s.Length <= n ? s : s.Substring(0, n - 1) + "…";
+
+    // ---- tile actions ----
+
+    private void CopyImage(HistoryItem it)
+    {
+        if (!File.Exists(it.Path)) { Toast.Show(L.T("hist.notFound")); Reload(); return; }
+        if (ClipboardCore.CopyImageFile(it.Path)) Toast.Show(L.T("hist.imageCopied")); else Toast.Show(L.T("hist.copyFail"));
+    }
+
+    private void Reveal(HistoryItem it)
+    {
+        try { if (File.Exists(it.Path)) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{it.Path}\"") { UseShellExecute = true }); }
+        catch (Exception ex) { CrashLog.Write("history-reveal", ex); }
+    }
+
+    private void OpenFile(HistoryItem it)
+    {
+        try { if (File.Exists(it.Path)) Process.Start(new ProcessStartInfo(it.Path) { UseShellExecute = true }); }
+        catch (Exception ex) { CrashLog.Write("history-open", ex); }
+    }
+
+    private async void Delete(HistoryItem it)
+    {
+        if (!await ConfirmDialog.ShowAsync(this, L.T("hist.confirmDelete"), L.T("hist.deleteTitle")))
+            return;
+        try
+        {
+            if (File.Exists(it.Path))
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                    it.Path, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+        }
+        catch
+        {
+            try { File.Delete(it.Path); } catch (Exception ex) { CrashLog.Write("history-delete", ex); }
+        }
+        Reload();
+    }
+}
+
+/// <summary>Minimal themed OK/Cancel dialog — Avalonia has no built-in MessageBox; this stands
+/// in for the WPF MessageBox.Show(OKCancel) the history delete confirmation used.</summary>
+internal static class ConfirmDialog
+{
+    public static async System.Threading.Tasks.Task<bool> ShowAsync(Window owner, string message, string title)
+    {
+        var win = new Window
+        {
+            Title = title,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ShowInTaskbar = false,
+        };
+        AppTheme.Apply(win);
+
+        var msg = new TextBlock { Text = message, MaxWidth = 340, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16) };
+        var ok = new Button { Content = "OK", MinWidth = 76 };
+        ok.Classes.Add("primary");
+        var cancel = new Button { Content = L.T("set.cancel"), MinWidth = 76, Margin = new Thickness(8, 0, 0, 0) };
+        cancel.Classes.Add("ghost");
+        ok.Click += (_, _) => win.Close(true);
+        cancel.Click += (_, _) => win.Close(false);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        buttons.Children.Add(ok);
+        buttons.Children.Add(cancel);
+        var root = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
+        root.Children.Add(msg);
+        root.Children.Add(buttons);
+        win.Content = root;
+
+        var result = await win.ShowDialog<bool?>(owner);
+        return result == true;
+    }
+}

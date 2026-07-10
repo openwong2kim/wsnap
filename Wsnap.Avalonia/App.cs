@@ -64,6 +64,21 @@ public partial class App : Application
                 };
                 desktop.MainWindow = ov;
             }
+            else if (desktop.Args != null && System.Array.IndexOf(desktop.Args, "--settings-demo") >= 0)
+            {
+                // Phase 3b verification: real SettingsWindow, no-op apply callback. The harness
+                // never clicks Save, so the user's settings.json is untouched.
+                desktop.MainWindow = new SettingsWindow(() => { });
+            }
+            else if (desktop.Args != null && System.Array.IndexOf(desktop.Args, "--history-demo") >= 0)
+            {
+                // Phase 3b verification: real HistoryWindow over an in-memory temp SaveFolder.
+                string demoDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wsnap_p3b_hist");
+                System.IO.Directory.CreateDirectory(demoDir);
+                Settings.Current.SaveFolder = demoDir;
+                Settings.Current.HistoryKeepRecent = 0;
+                desktop.MainWindow = new HistoryWindow();
+            }
             else if (thumbDemo != null)
             {
                 // Phase 3 verification mode (dev-only): pop a real ThumbnailWindow for the given
