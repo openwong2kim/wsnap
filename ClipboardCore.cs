@@ -77,9 +77,11 @@ public static class ClipboardCore
     /// Read an image OFF the clipboard as encoded bytes (PNG unless a non-PNG file was on a
     /// FileDrop). Order mirrors what we write: "PNG" stream (keeps alpha) → standard
     /// CF_DIB/CF_BITMAP (re-encoded to PNG, alpha-less by definition) → an image file from a
-    /// FileDrop. Null when there's no image.
+    /// FileDrop. Null when there's no image. <paramref name="includeFileDrop"/> = false skips
+    /// the FileDrop fallback — ClipboardWatcher uses that so a plain file copy in Explorer
+    /// doesn't count as an "image copy".
     /// </summary>
-    public static byte[]? TryReadImageBytes()
+    public static byte[]? TryReadImageBytes(bool includeFileDrop = true)
     {
         try
         {
@@ -91,9 +93,10 @@ public static class ClipboardCore
             if (SWF.Clipboard.ContainsImage() && SWF.Clipboard.GetImage() is Bitmap dib)
                 using (dib) return SkiaImage.EncodePng(dib, opaque: true);
 
-            foreach (string? f in SWF.Clipboard.GetFileDropList())
-                if (f != null && IsImagePath(f) && File.Exists(f))
-                    return File.ReadAllBytes(f);
+            if (includeFileDrop)
+                foreach (string? f in SWF.Clipboard.GetFileDropList())
+                    if (f != null && IsImagePath(f) && File.Exists(f))
+                        return File.ReadAllBytes(f);
 
             return null;
         }
