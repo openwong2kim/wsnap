@@ -194,7 +194,7 @@ public partial class App : IResidentHost
 
         // showControl:true — the red "recording" badge stays as a visibility + click-to-kill signal
         // for external/agent-initiated recording (a privacy requirement, not just UI).
-        s.Rec = new GifRecorder(new System.Windows.Int32Rect(x, y, w, h), p => s.Path = p, maxSeconds, showControl: true, fps: fps);
+        s.Rec = new GifRecorder(new System.Drawing.Rectangle(x, y, w, h), p => s.Path = p, maxSeconds, showControl: true, fps: fps);
         s.Rec.Finished += () =>
         {
             _gifs.Remove(id);
@@ -227,7 +227,7 @@ public partial class App : IResidentHost
         var s = new VideoSession { W = w, H = h };
         var startTcs = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        s.Rec = new VideoRecorder(new System.Windows.Int32Rect(x, y, w, h), (path, poster) =>
+        s.Rec = new VideoRecorder(new System.Drawing.Rectangle(x, y, w, h), (path, poster) =>
         {
             _videos.Remove(id);
             try { new ThumbnailWindow(path, poster: poster).Show(); ScheduleTrim(); } catch (Exception ex) { CrashLog.Write("video-present", ex); }
@@ -253,7 +253,7 @@ public partial class App : IResidentHost
         var (x, y, w, h) = ArgReader.Rect(cmd.Args);
         if (w < 2 || h < 2) return Task.FromResult(CommandResult.Fail("no_region", "scroll needs a region of at least 2x2"));
         var tcs = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        new ScrollCapture(new System.Windows.Int32Rect(x, y, w, h), path =>
+        new ScrollCapture(new System.Drawing.Rectangle(x, y, w, h), path =>
         {
             try { new ThumbnailWindow(path).Show(); } catch (Exception ex) { CrashLog.Write("scroll-present", ex); }
             tcs.TrySetResult(CommandResult.FileSaved(path, w, h));

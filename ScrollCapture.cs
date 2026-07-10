@@ -17,10 +17,6 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
 
 namespace Wsnap;
 
@@ -32,19 +28,20 @@ namespace Wsnap;
 /// lag, parallax) instead of forcing a noisy shift that corrupts the stitch — so when content
 /// can't be aligned, the result is a shorter but clean image rather than a garbled one. Still
 /// best for text/web; stops automatically when no new content appears.
+/// UI-framework-agnostic since Phase 4 (plain Rectangle region + RecorderUi badge).
 /// </summary>
 public sealed class ScrollCapture
 {
     private const int MaxSteps = 60;
     private const int MaxHeightPx = 20000;
 
-    private readonly Int32Rect _r;
+    private readonly Rectangle _r;
     private readonly Action<string> _onSaved;
     private readonly List<Bitmap> _strips = new();
-    private Window? _control;
+    private IRecorderBadge? _badge;
     private bool _stop;
 
-    public ScrollCapture(Int32Rect region, Action<string> onSaved)
+    public ScrollCapture(Rectangle region, Action<string> onSaved)
     {
         _r = region;
         _onSaved = onSaved;
@@ -53,7 +50,8 @@ public sealed class ScrollCapture
     public async void Start()
     {
         if (_r.Width < 4 || _r.Height < 8) return;
-        ShowControl();
+        _badge = RecorderUi.TryShow(L.T("scroll.recording"), 0xF01E6FEB);
+        if (_badge != null) _badge.Clicked += () => _stop = true;
 
         int cx = _r.X + _r.Width / 2, cy = _r.Y + _r.Height / 2;
         SetCursorPos(cx, cy);
@@ -99,7 +97,7 @@ public sealed class ScrollCapture
         }
         catch (Exception ex) { CrashLog.Write("scroll-capture", ex); }
 
-        _control?.Close();
+        _badge?.Close(); _badge = null;
         Finish(totalH);
     }
 
@@ -186,38 +184,6 @@ public sealed class ScrollCapture
         }
         double residual = meanSig > 0 ? best / meanSig : (best > 0 ? 1 : 0);
         return (bestShift, residual);
-    }
-
-    private void ShowControl()
-    {
-        var status = new TextBlock
-        {
-            Text = L.T("scroll.recording"),
-            Foreground = System.Windows.Media.Brushes.White, FontSize = 13,
-            Margin = new Thickness(12, 8, 12, 8)
-        };
-        var border = new Border
-        {
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xF0, 0x1E, 0x6F, 0xEB)),
-            Child = status, Cursor = Cursors.Hand
-        };
-        _control = new Window
-        {
-            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
-            AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent,
-            Topmost = true, ShowInTaskbar = false, SizeToContent = SizeToContent.WidthAndHeight,
-            Content = border
-        };
-        _control.MouseLeftButtonDown += (_, _) => _stop = true;
-        _control.KeyDown += (_, e) => { if (e.Key == Key.Escape) _stop = true; };
-        _control.Loaded += (_, _) =>
-        {
-            var wa = SystemParameters.WorkArea;
-            _control.Left = wa.Left + (wa.Width - _control.ActualWidth) / 2;
-            _control.Top = wa.Top + 12;
-        };
-        _control.Show();
     }
 
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
