@@ -27,6 +27,9 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.*" />
     <PackageReference Include="Avalonia.Desktop" Version="11.2.*" />
+    <!-- Phase 1: FluentTheme (dark variant) supplies complete control templates; Theme.axaml
+         overrides its tokens with wsnap's palette and adds class-selector styles on top. -->
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.*" />
     <PackageReference Include="Avalonia.Diagnostics" Version="11.2.*" Condition="'$(Configuration)' == 'Debug'" />
   </ItemGroup>
 
@@ -42,6 +45,7 @@
     <Compile Include="..\DxgiGrab.cs" Link="DxgiGrab.cs" />
     <Compile Include="..\FFmpegProvider.cs" Link="FFmpegProvider.cs" />
     <Compile Include="..\GifWriter.cs" Link="GifWriter.cs" />
+    <Compile Include="..\HotkeyHook.cs" Link="HotkeyHook.cs" />
     <Compile Include="..\MemoryTrim.cs" Link="MemoryTrim.cs" />
     <Compile Include="..\Ocr.cs" Link="Ocr.cs" />
     <Compile Include="..\Settings.cs" Link="Settings.cs" />

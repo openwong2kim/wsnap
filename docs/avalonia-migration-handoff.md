@@ -27,7 +27,8 @@ Rust/C++ 전면 재작성은 두 차례(다이어트 검토 시, 스택 재검�
 | [#44](https://github.com/openwong2kim/wsnap/pull/44) | scoop/winget 해시 갱신 | MERGED |
 | [#45](https://github.com/openwong2kim/wsnap/pull/45) | Avalonia 마이그레이션 스캐폴드 + 스파이크(a)(d) | MERGED |
 | [#46](https://github.com/openwong2kim/wsnap/pull/46) | 이 핸드오프 문서 + 스파이크(b)(c) PASS 기록 | MERGED |
-| #47 | **Phase 0**: SkiaSharp 이미징 통일(SkiaImage.cs) + 프레임워크-무관 클립보드 코어(ClipboardCore.cs) + 자체 GIF89a 인코더(GifWriter 재작성) | 작성됨 |
+| [#47](https://github.com/openwong2kim/wsnap/pull/47) | **Phase 0**: SkiaSharp 이미징 통일(SkiaImage.cs) + 프레임워크-무관 클립보드 코어(ClipboardCore.cs) + 자체 GIF89a 인코더(GifWriter 재작성) | MERGED |
+| #48 | **Phase 1**: Theme.axaml+AppTheme(Avalonia 디자인시스템, FluentTheme dark 기반 class-selector 재설계) + HotkeyHook 프레임워크-무관화·링크 + DevShowcase 검증 창 | 작성됨 |
 
 `main`에 `Wsnap.Avalonia/` sibling 프로젝트가 존재. **release.yml은 여전히 `Wsnap.csproj`만 빌드** — Avalonia 작업은 배포에 영향 없음.
 
@@ -89,8 +90,8 @@ Avalonia 창(topmost, 고정 좌표)에서 `PointerPressed` 시 `DataFormats.Fil
 ## 4. 다음 세션에서 할 것 (순서대로)
 
 1. ~~**Phase 0 착수**~~ **완료(PR #47)**: 모든 PNG 인코딩이 `SkiaImage.cs`(SkiaSharp)로 통일 — `CaptureStore`(구 GDI+ `Bitmap.Save`), `ImageClipboard`(구 WPF `PngBitmapEncoder`), `McpStdioServer` 리사이즈, `Ocr`(PNG 왕복 제거, 직접 픽셀 복사). 클립보드 I/O는 프레임워크-무관 `ClipboardCore.cs`(WinForms OLE, 스파이크(b) 경로)로 분리. `GifWriter`는 WPF `GifBitmapEncoder`+바이트 패치 방식에서 **자체 GIF89a 인코더**(octree 256색 팔레트 + ppmtogif-계열 LZW + GCE/NETSCAPE 루프)로 재작성 — UI 프레임워크 의존성 0. `SkiaImage.cs`/`ClipboardCore.cs`/`GifWriter.cs`는 `Wsnap.Avalonia`에도 링크됨. 검증: `.smoke` 11/11 + 전용 하네스(PNG 픽셀/알파, JPEG 트랜스코드, GIF 프레임·딜레이·루프·그라디언트 양자화 mean err 8.76·노이즈 LZW 오버플로, 클립보드 라운드트립) 7/7 PASS. v1.9.0 독립 출시는 선택지로 남음(버전은 아직 1.8.0).
-2. **Phase 1**: Theme.cs Avalonia 재설계 + HotkeyHook 이식 (§2-6 단계 순서 참조).
-3. (Phase 2 진행 전) 실기기 멀티모니터 mixed-DPI 재검증 — §3 스파이크(d) 미해결 항목.
+2. ~~**Phase 1**~~ **완료(PR #48)**: (1) `Wsnap.Avalonia/Theme.axaml` — WPF Theme.cs의 keyed style+trigger를 Avalonia 관용구로 **재설계**: FluentTheme(dark) 기반 + Fluent 토큰 오버라이드(SystemAccentColor·TextControl*·ComboBox*) + class-selector 스타일(`Button.primary`/`.ghost`/`.subtle`, `ToggleButton.tool`, `TextBox.field`, `ComboBox.combo`, `CheckBox.toggle` — 상태는 `:pointerover`/`:pressed`/`:checked` pseudo-class + `/template/ ContentPresenter#PART_ContentPresenter` 셀렉터). (2) `Wsnap.Avalonia/Theme.cs`의 `AppTheme` 정적 클래스 — 색 토큰·`Brush(key)`·`Apply(w)`(DWM 다크 타이틀바 동일 P/Invoke, HWND는 `TryGetPlatformHandle()`). (3) 공유 `HotkeyHook.cs` 프레임워크-무관화: WPF Dispatcher 의존 제거, `Install()` 시점 `SynchronizationContext` 캡처 후 `Post`(WPF=DispatcherSynchronizationContext라 동작 동일, Avalonia UI 컨텍스트도 동일 코드) — Avalonia에 링크됨. (4) `--showcase` 플래그로 뜨는 `DevShowcase` 검증 창. 검증: 외부 GDI 스크린샷 픽셀 체크 13/13(토큰 스와치 8종+창배경+primary/tool:checked/ghost) + SendInput Ctrl+Alt+F9 → probe 파일 `test.probe|ui=True`(Avalonia UI 스레드 마셜링 확인). WPF 회귀 `.smoke` 11/11.
+3. **Phase 2**: CaptureOverlay+MonitorPlacement+ClipboardWatcher 이식 — §3 스파이크(a)의 **4-rect 기법 필수**(WPF 지오메트리 직역 금지). 진행 전 실기기 멀티모니터 mixed-DPI 재검증(§3 스파이크(d) 미해결 항목).
 
 ---
 
@@ -101,6 +102,7 @@ Avalonia 창(topmost, 고정 좌표)에서 `PointerPressed` 시 `DataFormats.Fil
 - **`Wsnap.csproj`(WPF)는 `Wsnap.Avalonia\`를 명시적으로 `<Compile Remove>`하고 있음** — 새 하위폴더/프로젝트를 저장소 루트에 추가할 때는 항상 WPF 프로젝트의 기본 glob이 그걸 삼키지 않는지 확인할 것(빌드는 되는데 타입 충돌 에러로 나타남, 예: 두 개의 다른 `Toast` 클래스 충돌).
 - **`Control\CommandRouter.cs`/`Control\ControlGate.cs`는 아직 `Wsnap.Avalonia`에 링크 안 됨** — `Toast.*`/`CaptureCore.*` 호출이 있어서. `Wsnap.Avalonia/ToastStub.cs`는 `Ocr.cs`의 Toast 호출 2곳만 임시로 막아주는 스텁 — **Phase 3에서 진짜 Avalonia Toast가 생기면 즉시 삭제할 것.**
 - **자체 렌더(`RenderTargetBitmap.Render(this)`) 기반 스크린샷 검증은 신뢰하지 말 것** — 실제 화면과 불일치하는 사례를 스파이크(a)에서 실측 확인. 시각적 검증은 항상 외부(별도 프로세스에서 GDI `CopyFromScreen`) 캡처로 할 것.
+- **Avalonia 창 안에서 `Theme.Apply(...)`를 그대로 쓰면 안 됨** — Avalonia `StyledElement`에 이미 `Theme` 속성(ControlTheme)이 있어 컨트롤 파생 클래스 안에서는 클래스가 아니라 그 속성으로 해석됨(CS1061). Avalonia 쪽 디자인시스템 클래스는 그래서 `AppTheme`로 명명 — **창 이식 시 `Theme.` → `AppTheme.` 치환 필요.**
 - **SkiaSharp 3.x의 `SKBitmap.Decode`는 디코드 불가 바이트에 null을 반환하지 않고 `ArgumentNullException('codec')`을 던짐** — Phase 0 검증 하네스에서 실측 발견. null 체크만 믿지 말고 try/catch 필요(`SkiaImage.TranscodeToPng`에 적용됨).
 - **드래그아웃 관련 함정 3건은 §3 스파이크(c) 참조**: ①11.2엔 `DoDragDropAsync` 없음(`DoDragDrop`이 Task 반환), ②탐색기는 드롭 데이터를 비동기 추출하므로 소스 데이터 객체가 드롭 후에도 살아 있어야 함, ③`IStorageFile`은 포인터 프레스 전에 미리 해석.
 

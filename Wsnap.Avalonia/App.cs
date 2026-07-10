@@ -18,9 +18,11 @@ using Avalonia.Threading;
 
 namespace Wsnap;
 
-/// <summary>Scaffold Avalonia Application. Phase 1 replaces this with real startup: HotkeyHook,
-/// tray icon (WinForms, deliberately retained), Theme.cs's Avalonia rewrite. For now it proves
-/// Settings.Load() (a linked, framework-agnostic file) runs correctly under the Avalonia host.</summary>
+/// <summary>Scaffold Avalonia Application, now carrying the Phase 1 foundations: FluentTheme +
+/// Theme.axaml (wsnap design system) load via App.axaml, and <c>--showcase</c> opens the
+/// DevShowcase window (theme + HotkeyHook verification). Real startup — tray icon (WinForms,
+/// deliberately retained), capture windows — lands in Phase 2+; a bare launch still proves
+/// startup works and exits clean.</summary>
 public partial class App : Application
 {
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -30,10 +32,18 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             Settings.Load();
-            // Scaffold: nothing to show yet, exit clean after proving startup works. Deferred via
-            // Post so the dispatcher's main loop is actually pumping before Shutdown() runs —
-            // calling Shutdown() synchronously here (before Start() enters its loop) throws.
-            Dispatcher.UIThread.Post(() => desktop.Shutdown());
+            if (desktop.Args != null && System.Array.IndexOf(desktop.Args, "--showcase") >= 0)
+            {
+                desktop.MainWindow = new DevShowcase();
+            }
+            else
+            {
+                // Scaffold: nothing to show yet, exit clean after proving startup works. Deferred
+                // via Post so the dispatcher's main loop is actually pumping before Shutdown()
+                // runs — calling Shutdown() synchronously here (before Start() enters its loop)
+                // throws.
+                Dispatcher.UIThread.Post(() => desktop.Shutdown());
+            }
         }
         base.OnFrameworkInitializationCompleted();
     }
