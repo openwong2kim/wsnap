@@ -14,6 +14,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Wsnap.Control;
 
@@ -50,9 +51,18 @@ public sealed class FolderWatcher : IDisposable
     private readonly object _seenLock = new();
     private readonly HashSet<string> _seen = new(StringComparer.OrdinalIgnoreCase);
 
+    // UI/STA thread marshalling: capture the constructing thread's SynchronizationContext
+    // (App creates this on the UI thread), same framework-agnostic pattern as HotkeyHook —
+    // works identically for WPF (DispatcherSynchronizationContext) and Avalonia.
+    private readonly SynchronizationContext? _ui;
+
     /// <param name="onOcr">Optional callback (image path) fired on the UI thread after a
     /// successful OCR. Pass none for the plain clipboard+sidecar behaviour.</param>
-    public FolderWatcher(Action<string>? onOcr = null) => _onOcr = onOcr;
+    public FolderWatcher(Action<string>? onOcr = null)
+    {
+        _onOcr = onOcr;
+        _ui = SynchronizationContext.Current;
+    }
 
     /// <summary>Begin watching <see cref="Settings.WatchFolderPath"/>. No-op if already bound to
     /// that same folder; rebinds if the configured path changed; quietly does nothing if the
@@ -156,7 +166,8 @@ public sealed class FolderWatcher : IDisposable
             if (result.Text is not { Length: > 0 } text) return;   // nothing readable — stay silent, no sidecar
 
             // Clipboard OLE calls must run on the STA/UI thread; we're on a worker here.
-            RunOnUi(() => ImageClipboard.CopyText(text));
+            // (CopyTextSuppressed = watcher-suppressed text write, same as ImageClipboard.CopyText.)
+            RunOnUi(() => ClipboardCore.CopyTextSuppressed(text));
 
             // Sidecar beside the image — also the durable "already processed" marker.
             TryWriteSidecar(sidecar, text);
@@ -211,11 +222,10 @@ public sealed class FolderWatcher : IDisposable
     }
 
     /// <summary>Marshal an action onto the UI/STA thread (falls back to inline when headless).</summary>
-    private static void RunOnUi(Action action)
+    private void RunOnUi(Action action)
     {
-        var app = System.Windows.Application.Current;
-        if (app == null) { action(); return; }
-        try { app.Dispatcher.Invoke(action); }
+        if (_ui == null) { action(); return; }
+        try { _ui.Post(_ => { try { action(); } catch (Exception ex) { CrashLog.Write("folder-watch", ex); } }, null); }
         catch (Exception ex) { CrashLog.Write("folder-watch", ex); }
     }
 }

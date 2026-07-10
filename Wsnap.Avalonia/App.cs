@@ -18,11 +18,10 @@ using Avalonia.Threading;
 
 namespace Wsnap;
 
-/// <summary>Scaffold Avalonia Application, now carrying the Phase 1 foundations: FluentTheme +
-/// Theme.axaml (wsnap design system) load via App.axaml, and <c>--showcase</c> opens the
-/// DevShowcase window (theme + HotkeyHook verification). Real startup — tray icon (WinForms,
-/// deliberately retained), capture windows — lands in Phase 2+; a bare launch still proves
-/// startup works and exits clean.</summary>
+/// <summary>The Avalonia Application. Since Phase 6 a bare launch starts the RESIDENT tray app
+/// (App.Resident.cs / App.Control.cs — hotkeys, tray icon, watchers, opt-in control pipe);
+/// the <c>--*-demo</c>/<c>--showcase</c> flags remain as dev-only external-verification modes
+/// from earlier phases.</summary>
 public partial class App : Application
 {
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -127,13 +126,44 @@ public partial class App : Application
             }
             else
             {
-                // Scaffold: nothing to show yet, exit clean after proving startup works. Deferred
-                // via Post so the dispatcher's main loop is actually pumping before Shutdown()
-                // runs — calling Shutdown() synchronously here (before Start() enters its loop)
-                // throws.
-                Dispatcher.UIThread.Post(() => desktop.Shutdown());
+                // Phase 6: a bare launch is the resident tray app. --resident-demo[=pipe] is the
+                // sandboxed variant for the external harness: all Settings mutations are
+                // IN-MEMORY ONLY (never saved), captures land in a temp dir, the hotkey is a
+                // fixed test chord, and nothing touches the network.
+                string? demo = null;
+                if (desktop.Args != null)
+                    foreach (var a in desktop.Args)
+                        if (a.StartsWith("--resident-demo")) demo = a;
+                if (demo != null) ApplyResidentDemoSandbox(demo);
+                StartResident(desktop, demo != null);
             }
         }
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>Sandbox the resident run for the Phase 6 verification harness. In-memory only —
+    /// Settings.Save is never called on this instance by the harness paths, so the user's real
+    /// settings.json is untouched.</summary>
+    private static void ApplyResidentDemoSandbox(string arg)
+    {
+        string demoDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wsnap_p6demo");
+        System.IO.Directory.CreateDirectory(demoDir);
+        var s = Settings.Current;
+        s.SaveFolder = demoDir;
+        s.HistoryKeepRecent = 0;          // don't prune the demo dir
+        s.ClipboardWatch = false;
+        s.WatchFolderOcr = false;
+        s.ClipboardAutoOcr = false;
+        s.TelemetryOptIn = false;
+        s.UpdateCheck = false;
+        s.AutoCopyOnCapture = false;      // keep the harness run off the user's clipboard
+        // Fixed test chord Ctrl+Alt+F9 → interactive capture (same chord Phase 1 verified).
+        s.HotkeyVk = 0x78; s.HotkeyCtrl = true; s.HotkeyAlt = true; s.HotkeyShift = false; s.HotkeyWin = false;
+        s.Hotkeys = new System.Collections.Generic.List<HotkeyBinding>
+        {
+            new() { Vk = 0x78, Ctrl = true, Alt = true, Command = "capture.interactive", Swallow = true }
+        };
+        // --resident-demo=pipe: opt in to external control so the pipe path can be re-verified.
+        s.ExternalControlEnabled = arg.EndsWith("=pipe", System.StringComparison.Ordinal);
     }
 }
