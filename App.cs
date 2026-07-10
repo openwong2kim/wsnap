@@ -375,7 +375,16 @@ public partial class App : System.Windows.Application
             if (name != null)
             {
                 using var s = asm.GetManifestResourceStream(name);
-                if (s != null) return new System.Drawing.Icon(s, System.Windows.Forms.SystemInformation.SmallIconSize);
+                if (s != null)
+                {
+                    // Ask for a frame the .ico actually contains (16/24/32/48…). SmallIconSize
+                    // is 20 at 125% DPI and Icon(stream, 20) falls back to the 16px frame
+                    // upscaled — measured mushy in the Win11 tray. Rounding UP to the next
+                    // real frame lets the shell downscale, which renders crisp.
+                    int want = System.Windows.Forms.SystemInformation.SmallIconSize.Width;
+                    int frame = want <= 16 ? 16 : want <= 24 ? 24 : want <= 32 ? 32 : 48;
+                    return new System.Drawing.Icon(s, new System.Drawing.Size(frame, frame));
+                }
             }
         }
         catch (Exception ex) { CrashLog.Write("tray-icon", ex); }
