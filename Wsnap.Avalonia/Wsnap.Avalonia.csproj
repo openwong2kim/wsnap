@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- New sibling project for the Avalonia UI migration (docs: plans/humming-meandering-aurora.md,
+         also mirrored at C:\Users\rizz\.claude\plans\humming-meandering-aurora.md). WPF's Wsnap.csproj
+         keeps shipping ordinary bugfix releases throughout — UseWPF/UseWindowsForms are SDK-level
+         flags that can't coexist with Avalonia in one project, so this is deliberately separate,
+         not an in-place conversion. Only the SHIP step (release pipeline pointing at this exe
+         instead of Wsnap.csproj's) is meant to be atomic; this project merges into main
+         incrementally throughout the migration. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- WinForms is a DELIBERATE retained island — NotifyIcon + ContextMenuStrip + the v1.8
+         TrayMenuTheme.cs dark-theme owner-draw renderer have no Avalonia NativeMenu equivalent
+         (NativeMenu is OS-native chrome, no owner-draw hook). Do not "purity" this away later. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Distinct from Wsnap.csproj's "wsnap" AssemblyName during parallel development, on
+         purpose: two sibling SDK projects sharing one assembly name in the same tree caused
+         MSBuild/obj-cache confusion for OTHER projects in this repo (.smoke's duplicate-
+         AssemblyInfo build errors). Rename to "wsnap" only at the actual Phase 6 cutover. -->
+    <AssemblyName>wsnap-avalonia</AssemblyName>
+    <RootNamespace>Wsnap</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.*" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.*" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.*" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <!-- The 24 UI-framework-agnostic files from Wsnap.csproj, LINKED (not copied) so there is
+       exactly one copy on disk shared by both projects — no drift possible. Listed explicitly
+       (no glob) so a new WPF-only file never accidentally gets pulled into this build. -->
+  <ItemGroup>
+    <Compile Include="..\AudioDevices.cs" Link="AudioDevices.cs" />
+    <Compile Include="..\AutoStart.cs" Link="AutoStart.cs" />
+    <Compile Include="..\CaptureStore.cs" Link="CaptureStore.cs" />
+    <Compile Include="..\CrashLog.cs" Link="CrashLog.cs" />
+    <Compile Include="..\DxgiGrab.cs" Link="DxgiGrab.cs" />
+    <Compile Include="..\FFmpegProvider.cs" Link="FFmpegProvider.cs" />
+    <Compile Include="..\MemoryTrim.cs" Link="MemoryTrim.cs" />
+    <Compile Include="..\Ocr.cs" Link="Ocr.cs" />
+    <Compile Include="..\Settings.cs" Link="Settings.cs" />
+    <Compile Include="..\SingleInstance.cs" Link="SingleInstance.cs" />
+    <Compile Include="..\Strings.cs" Link="Strings.cs" />
+    <Compile Include="..\UpdateChecker.cs" Link="UpdateChecker.cs" />
+    <Compile Include="..\Uploader.cs" Link="Uploader.cs" />
+    <Compile Include="..\Control\AuditLog.cs" Link="Control\AuditLog.cs" />
+    <Compile Include="..\Control\Command.cs" Link="Control\Command.cs" />
+    <Compile Include="..\Control\CommandCatalog.cs" Link="Control\CommandCatalog.cs" />
+    <Compile Include="..\Control\ConsoleBridge.cs" Link="Control\ConsoleBridge.cs" />
+    <Compile Include="..\Control\JsonRpc.cs" Link="Control\JsonRpc.cs" />
+    <Compile Include="..\Control\McpStdioServer.cs" Link="Control\McpStdioServer.cs" />
+    <Compile Include="..\Control\PipeClientRouter.cs" Link="Control\PipeClientRouter.cs" />
+    <Compile Include="..\Control\PipeProtocol.cs" Link="Control\PipeProtocol.cs" />
+    <Compile Include="..\Control\PipeServer.cs" Link="Control\PipeServer.cs" />
+    <!-- NOT linked yet: CommandRouter.cs + ControlGate.cs call into Toast.* and CaptureCore.*
+         (not yet ported), which are Phase 2/4 work per the migration plan. Bucketed with
+         CaptureCore.cs/CliRouter.cs into Phase 4 (Control layer) rather than stubbed here, so
+         this scaffold doesn't paper over a real cross-file dependency the plan already flagged. -->
+  </ItemGroup>
+
+  <!-- RapidOcrNet + Vortice.Direct3D11 are pulled in transitively by the linked Ocr.cs / DxgiGrab.cs
+       files, same package refs as Wsnap.csproj. -->
+  <ItemGroup>
+    <PackageReference Include="RapidOcrNet" Version="2.0.0" ExcludeAssets="contentFiles" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+  </ItemGroup>
+
+</Project>
