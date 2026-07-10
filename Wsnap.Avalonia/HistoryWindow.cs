@@ -179,6 +179,7 @@ public sealed class HistoryWindow : Window
 
         var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 2) };
         bar.Children.Add(IconBtn("copy", L.T("hist.copy"), () => CopyImage(it)));
+        bar.Children.Add(IconBtn("edit", L.T("hist.edit"), () => Edit(it)));
         bar.Children.Add(IconBtn("folder", L.T("hist.reveal"), () => Reveal(it)));
         bar.Children.Add(IconBtn("open", L.T("hist.open"), () => OpenFile(it)));
         bar.Children.Add(IconBtn("trash", L.T("hist.delete"), () => Delete(it), danger: true));
@@ -251,6 +252,7 @@ public sealed class HistoryWindow : Window
         // context menu mirrors the action bar
         var cm = new ContextMenu();
         cm.Items.Add(Menu(L.T("hist.copy"), () => CopyImage(it)));
+        cm.Items.Add(Menu(L.T("hist.edit"), () => Edit(it)));
         cm.Items.Add(Menu(L.T("hist.reveal"), () => Reveal(it)));
         cm.Items.Add(Menu(L.T("hist.open"), () => OpenFile(it)));
         cm.Items.Add(new Separator());
@@ -303,6 +305,16 @@ public sealed class HistoryWindow : Window
     {
         if (!File.Exists(it.Path)) { Toast.Show(L.T("hist.notFound")); Reload(); return; }
         if (ClipboardCore.CopyImageFile(it.Path)) Toast.Show(L.T("hist.imageCopied")); else Toast.Show(L.T("hist.copyFail"));
+    }
+
+    private void Edit(HistoryItem it)
+    {
+        if (!File.Exists(it.Path)) { Toast.Show(L.T("hist.notFound")); Reload(); return; }
+        EditorWindow ed;
+        try { ed = new EditorWindow(it.Path); }
+        catch (Exception ex) { CrashLog.Write("history-edit", ex); Toast.Show(L.T("ed.openFail")); return; }
+        ed.Closed += (_, _) => { if (!string.IsNullOrEmpty(ed.ResultPath)) { new ThumbnailWindow(ed.ResultPath!, edited: true).Show(); Reload(); } };
+        ed.Show(); ed.Activate();
     }
 
     private void Reveal(HistoryItem it)
