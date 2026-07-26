@@ -3,6 +3,8 @@ bin/
 obj/
 publish/
 publish-avalonia/
+publish-av/
+publish-fwd/
 .buildcheck/
 .themecheck/
 .smoke/

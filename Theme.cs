@@ -23,30 +23,37 @@ namespace Wsnap;
 /// <summary>
 /// wsnap's shared design system. One source of truth for color, type, radius and
 /// control styling so the editor, settings, capture toolbar and thumbnails all feel
-/// like one app — and like the landing page (same dark palette + accent #3B82F6).
+/// like one app.
 ///
-/// The visual tokens mirror site/index.html so the product and its marketing match.
-/// Styles are authored as a XAML ResourceDictionary (real ControlTemplates with
-/// hover/press/checked triggers) and parsed once; code-behind windows merge it in
-/// and pull styles by key via <see cref="Style"/> / <see cref="Brush"/>.
+/// The palette follows the macOS Dark Mode system colors (HIG): systemBackground greys
+/// (#1C1C1E → #3A3A3C) and systemBlue (#0A84FF dark / #007AFF light), so the app reads
+/// as a first-class macOS citizen sitting next to Preview/Screenshot rather than a generic
+/// dark UI. Styles are authored as a XAML ResourceDictionary (real ControlTemplates with
+/// hover/press/checked triggers) and parsed once; code-behind windows merge it in and
+/// pull styles by key via <see cref="Style"/> / <see cref="Brush"/>.
 /// </summary>
 public static class Theme
 {
-    // ---- color tokens (mirror the landing page :root) ----
-    public static readonly Color Bg          = Hex("#0E0F11");
-    public static readonly Color Panel       = Hex("#16181B");
-    public static readonly Color Panel2      = Hex("#1C1F23");
-    public static readonly Color Surface     = Hex("#23262B"); // inputs / resting controls
-    public static readonly Color SurfaceHi   = Hex("#2C3036"); // hover
-    public static readonly Color Text        = Hex("#F4F5F7");
-    public static readonly Color Muted       = Hex("#AEB1BA");
-    public static readonly Color Muted2      = Hex("#8C909A");
-    public static readonly Color Accent      = Hex("#3B82F6");
-    public static readonly Color AccentDeep  = Hex("#2563EB");
-    public static readonly Color AccentSoft  = Color.FromArgb(0x24, 0x3B, 0x82, 0xF6);
-    public static readonly Color Danger      = Hex("#EF4444");
-    public static readonly Color Warn        = Hex("#FBBF24");
-    public static readonly Color Success     = Hex("#22C55E");
+    // ---- color tokens (macOS Dark Mode system palette) ----
+    // Mirrors Apple HIG dark-mode greys (systemBackground / secondary / tertiary) and the system
+    // blue (#0A84FF dark, #007AFF light) so wsnap reads as a first-class macOS citizen rather than
+    // a generic dark UI. The earlier palette (#0E0F11 + Tailwind #3B82F6) was darker and bluer
+    // than anything native on either OS — fine for a web landing page, harsh on the eyes next to
+    // Preview/Screenshot.
+    public static readonly Color Bg          = Hex("#1C1C1E"); // systemBackground dark
+    public static readonly Color Panel       = Hex("#2C2C2E"); // secondarySystemBackground (toolbars, cards)
+    public static readonly Color Panel2      = Hex("#3A3A3C"); // tertiarySystemBackground (popups, segmented)
+    public static readonly Color Surface     = Hex("#3A3A3C"); // resting controls / inputs
+    public static readonly Color SurfaceHi   = Hex("#48484A"); // hover / quaternaryLabel fill
+    public static readonly Color Text        = Hex("#FFFFFF"); // labelColor dark
+    public static readonly Color Muted       = Hex("#98989F"); // secondaryLabel dark
+    public static readonly Color Muted2      = Hex("#6C6C70"); // tertiaryLabel dark
+    public static readonly Color Accent      = Hex("#0A84FF"); // systemBlue dark mode
+    public static readonly Color AccentDeep  = Hex("#007AFF"); // systemBlue light mode (hover/press)
+    public static readonly Color AccentSoft  = Color.FromArgb(0x24, 0x0A, 0x84, 0xFF);
+    public static readonly Color Danger      = Hex("#FF453A"); // systemRed dark
+    public static readonly Color Warn        = Hex("#FFD60A"); // systemYellow dark
+    public static readonly Color Success     = Hex("#30D158"); // systemGreen dark
     public static readonly Color Border      = Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF);
     public static readonly Color BorderStrong= Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF);
 
@@ -116,21 +123,21 @@ public static class Theme
     xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'
     xmlns:sys='clr-namespace:System;assembly=mscorlib'>
 
-  <!-- ===== brushes ===== -->
-  <SolidColorBrush x:Key='BgBrush'           Color='#0E0F11'/>
-  <SolidColorBrush x:Key='PanelBrush'        Color='#16181B'/>
-  <SolidColorBrush x:Key='Panel2Brush'       Color='#1C1F23'/>
-  <SolidColorBrush x:Key='SurfaceBrush'      Color='#23262B'/>
-  <SolidColorBrush x:Key='SurfaceHiBrush'    Color='#2C3036'/>
-  <SolidColorBrush x:Key='TextBrush'         Color='#F4F5F7'/>
-  <SolidColorBrush x:Key='MutedBrush'        Color='#AEB1BA'/>
-  <SolidColorBrush x:Key='Muted2Brush'       Color='#8C909A'/>
-  <SolidColorBrush x:Key='AccentBrush'       Color='#3B82F6'/>
-  <SolidColorBrush x:Key='AccentDeepBrush'   Color='#2563EB'/>
-  <SolidColorBrush x:Key='AccentSoftBrush'   Color='#243B82F6'/>
-  <SolidColorBrush x:Key='DangerBrush'       Color='#EF4444'/>
-  <SolidColorBrush x:Key='WarnBrush'         Color='#FBBF24'/>
-  <SolidColorBrush x:Key='SuccessBrush'      Color='#22C55E'/>
+  <!-- ===== brushes (macOS Dark Mode system palette) ===== -->
+  <SolidColorBrush x:Key='BgBrush'           Color='#1C1C1E'/>
+  <SolidColorBrush x:Key='PanelBrush'        Color='#2C2C2E'/>
+  <SolidColorBrush x:Key='Panel2Brush'       Color='#3A3A3C'/>
+  <SolidColorBrush x:Key='SurfaceBrush'      Color='#3A3A3C'/>
+  <SolidColorBrush x:Key='SurfaceHiBrush'    Color='#48484A'/>
+  <SolidColorBrush x:Key='TextBrush'         Color='#FFFFFF'/>
+  <SolidColorBrush x:Key='MutedBrush'        Color='#98989F'/>
+  <SolidColorBrush x:Key='Muted2Brush'       Color='#6C6C70'/>
+  <SolidColorBrush x:Key='AccentBrush'       Color='#0A84FF'/>
+  <SolidColorBrush x:Key='AccentDeepBrush'   Color='#007AFF'/>
+  <SolidColorBrush x:Key='AccentSoftBrush'   Color='#240A84FF'/>
+  <SolidColorBrush x:Key='DangerBrush'       Color='#FF453A'/>
+  <SolidColorBrush x:Key='WarnBrush'         Color='#FFD60A'/>
+  <SolidColorBrush x:Key='SuccessBrush'      Color='#30D158'/>
   <SolidColorBrush x:Key='BorderBrush2'      Color='#18FFFFFF'/>
   <SolidColorBrush x:Key='BorderStrongBrush' Color='#28FFFFFF'/>
 
@@ -148,7 +155,7 @@ public static class Theme
     <Setter Property='Template'>
       <Setter.Value>
         <ControlTemplate TargetType='Button'>
-          <Border x:Name='b' CornerRadius='9' Background='{StaticResource AccentBrush}'
+          <Border x:Name='b' CornerRadius='8' Background='{StaticResource AccentBrush}'
                   Padding='{TemplateBinding Padding}' SnapsToDevicePixels='True'>
             <ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/>
           </Border>
@@ -184,7 +191,7 @@ public static class Theme
     <Setter Property='Template'>
       <Setter.Value>
         <ControlTemplate TargetType='Button'>
-          <Border x:Name='b' CornerRadius='9' Background='Transparent'
+          <Border x:Name='b' CornerRadius='8' Background='Transparent'
                   BorderBrush='{StaticResource BorderStrongBrush}' BorderThickness='1'
                   Padding='{TemplateBinding Padding}' SnapsToDevicePixels='True'>
             <ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/>

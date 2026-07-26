@@ -139,47 +139,34 @@ public sealed class EditorWindow : Window
 
     private Border BuildToolbar()
     {
-        var bar = new WrapPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(10, 8, 10, 8) };
+        // macOS-style segmented toolbar. Related controls live inside pill containers (a
+        // Panel2-ton rounded border, like an NSSegmentedControl); the groups are separated by
+        // whitespace instead of hairline separators, and primary actions sit docked-right.
+        // The old single WrapPanel listed every control in one long row — readable, but had no
+        // visual hierarchy between tools / stroke / colour / actions.
 
-        void ToolBtn(string label, Tool t, string tip)
-        {
-            var b = new ToggleButton
-            {
-                Style = Theme.Style("ToolToggle"),
-                Content = label,
-                Margin = new Thickness(1, 1, 1, 1),
-                MinWidth = 38,
-                ToolTip = tip
-            };
-            b.Click += (_, _) => SetTool(t);
-            _toolButtons[t] = b;
-            bar.Children.Add(b);
-        }
+        var toolsPill = PillPanel();
+        AddTool(toolsPill, L.T("ed.toolSelect"),   Tool.Select,   L.T("ed.toolSelectTip"));
+        AddTool(toolsPill, L.T("ed.toolArrow"),    Tool.Arrow,    L.T("ed.toolArrowTip"));
+        AddTool(toolsPill, L.T("ed.toolLine"),     Tool.Line,     L.T("ed.toolLineTip"));
+        AddTool(toolsPill, L.T("ed.toolRect"),     Tool.Rect,     L.T("ed.toolRectTip"));
+        AddTool(toolsPill, L.T("ed.toolEllipse"),  Tool.Ellipse,  L.T("ed.toolEllipseTip"));
+        AddTool(toolsPill, L.T("ed.toolPen"),      Tool.Pen,      L.T("ed.toolPenTip"));
+        AddTool(toolsPill, L.T("ed.toolHighlight"),Tool.Highlight,L.T("ed.toolHighlightTip"));
+        AddTool(toolsPill, L.T("ed.toolText"),     Tool.Text,     L.T("ed.toolTextTip"));
+        AddTool(toolsPill, L.T("ed.toolCounter"),  Tool.Counter,  L.T("ed.toolCounterTip"));
+        AddTool(toolsPill, L.T("ed.toolMosaic"),   Tool.Mosaic,   L.T("ed.toolMosaicTip"));
+        AddTool(toolsPill, L.T("ed.toolBlur"),     Tool.Blur,     L.T("ed.toolBlurTip"));
+        AddTool(toolsPill, L.T("ed.toolCrop"),     Tool.Crop,     L.T("ed.toolCropTip"));
 
-        ToolBtn(L.T("ed.toolSelect"), Tool.Select, L.T("ed.toolSelectTip"));
-        bar.Children.Add(Sep());
-        ToolBtn(L.T("ed.toolArrow"), Tool.Arrow, L.T("ed.toolArrowTip"));
-        ToolBtn(L.T("ed.toolLine"), Tool.Line, L.T("ed.toolLineTip"));
-        ToolBtn(L.T("ed.toolRect"), Tool.Rect, L.T("ed.toolRectTip"));
-        ToolBtn(L.T("ed.toolEllipse"), Tool.Ellipse, L.T("ed.toolEllipseTip"));
-        ToolBtn(L.T("ed.toolPen"), Tool.Pen, L.T("ed.toolPenTip"));
-        ToolBtn(L.T("ed.toolHighlight"), Tool.Highlight, L.T("ed.toolHighlightTip"));
-        ToolBtn(L.T("ed.toolText"), Tool.Text, L.T("ed.toolTextTip"));
-        ToolBtn(L.T("ed.toolCounter"), Tool.Counter, L.T("ed.toolCounterTip"));
-        ToolBtn(L.T("ed.toolMosaic"), Tool.Mosaic, L.T("ed.toolMosaicTip"));
-        ToolBtn(L.T("ed.toolBlur"), Tool.Blur, L.T("ed.toolBlurTip"));
-        ToolBtn(L.T("ed.toolCrop"), Tool.Crop, L.T("ed.toolCropTip"));
+        var thickPill = PillPanel();
+        AddThickness(thickPill, L.T("ed.thin"),   2);
+        AddThickness(thickPill, L.T("ed.medium"), 5);
+        AddThickness(thickPill, L.T("ed.thick"),  10);
 
-        bar.Children.Add(Sep());
-
-        // thickness segmented
-        AddThickness(bar, L.T("ed.thin"), 2);
-        AddThickness(bar, L.T("ed.medium"), 5);
-        AddThickness(bar, L.T("ed.thick"), 10);
-
-        bar.Children.Add(Sep());
-
-        // color swatches
+        // colour swatches grouped in their own pill.
+        var colorPill = PillPanel();
+        var colorInner = (StackPanel)colorPill.Child;
         var colors = new[]
         {
             System.Windows.Media.Colors.Red, System.Windows.Media.Colors.Orange,
@@ -193,20 +180,20 @@ public sealed class EditorWindow : Window
             var c = colors[i];
             var sw = new Border
             {
-                Width = 22, Height = 22, Margin = new Thickness(2, 2, 2, 2),
-                CornerRadius = new CornerRadius(5),
+                Width = 20, Height = 20, Margin = new Thickness(2, 2, 2, 2),
+                CornerRadius = new CornerRadius(10),   // circular — reads as a colour dot
                 Background = new SolidColorBrush(c),
                 BorderBrush = Theme.Stroke(Theme.BorderStrong), BorderThickness = new Thickness(1),
                 Cursor = Cursors.Hand
             };
             sw.MouseLeftButtonDown += (_, _) => { _color = c; SelectSwatch(idx); };
             _swatches.Add(sw);
-            bar.Children.Add(sw);
+            colorInner.Children.Add(sw);
         }
         var custom = new Border
         {
-            Width = 22, Height = 22, Margin = new Thickness(4, 2, 2, 2),
-            CornerRadius = new CornerRadius(5),
+            Width = 20, Height = 20, Margin = new Thickness(4, 2, 2, 2),
+            CornerRadius = new CornerRadius(10),
             Background = Theme.Brush("Surface"),
             BorderBrush = Theme.Stroke(Theme.BorderStrong), BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
@@ -214,13 +201,26 @@ public sealed class EditorWindow : Window
             Child = new TextBlock { Text = "+", Foreground = Theme.Brush("Muted"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }
         };
         custom.MouseLeftButtonDown += (_, _) => PickCustomColor();
-        bar.Children.Add(custom);
+        colorInner.Children.Add(custom);
 
-        bar.Children.Add(Sep());
+        // Left side: grouped pills. Right side: primary actions (Cancel | Save | Copy order so
+        // the destructive/cancel option sits leftmost and the brightest accent — Copy — is last).
+        var left = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        left.Children.Add(toolsPill);
+        left.Children.Add(Spacer(10));
+        left.Children.Add(thickPill);
+        left.Children.Add(Spacer(10));
+        left.Children.Add(colorPill);
 
-        bar.Children.Add(ActionBtn(L.T("ed.copy"), "PrimaryButton", () => CopyToClipboard(), L.T("ed.copyTip")));
-        bar.Children.Add(ActionBtn(L.T("ed.save"), "GhostButton", Save, L.T("ed.saveTip")));
-        bar.Children.Add(ActionBtn(L.T("ed.cancel"), "GhostButton", () => { ResultPath = null; Close(); }, L.T("ed.cancelTip")));
+        var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        actions.Children.Add(ActionBtn(L.T("ed.cancel"), "GhostButton",  () => { ResultPath = null; Close(); }, L.T("ed.cancelTip")));
+        actions.Children.Add(ActionBtn(L.T("ed.save"),   "GhostButton",  Save,                       L.T("ed.saveTip")));
+        actions.Children.Add(ActionBtn(L.T("ed.copy"),   "PrimaryButton",() => CopyToClipboard(),    L.T("ed.copyTip")));
+
+        var bar = new DockPanel { LastChildFill = false, Margin = new Thickness(12, 9, 12, 9) };
+        DockPanel.SetDock(actions, System.Windows.Controls.Dock.Right);
+        bar.Children.Add(actions);
+        bar.Children.Add(left);
 
         return new Border
         {
@@ -230,25 +230,49 @@ public sealed class EditorWindow : Window
         };
     }
 
-    private static UIElement Sep() => new Border
+    /// <summary>A macOS-style segmented-control container: rounded Panel2-ton pill with a
+    /// horizontal stack inside. Buttons added via <see cref="AddTool"/>/<see cref="AddThickness"/>
+    /// sit flush together so the checked one reads as the active segment.</summary>
+    private static Border PillPanel() => new()
     {
-        Width = 1, Margin = new Thickness(7, 3, 7, 3),
-        Background = Theme.Stroke(Theme.BorderStrong)
+        Background = Theme.Brush("Panel2"),
+        CornerRadius = new CornerRadius(8),
+        Padding = new Thickness(3),
+        Child = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal }
     };
 
-    private readonly Dictionary<double, ToggleButton> _thickButtons = new();
+    private static UIElement Spacer(double w) => new Border { Width = w, Background = System.Windows.Media.Brushes.Transparent };
 
-    private void AddThickness(WrapPanel bar, string label, double value)
+    private void AddTool(Border pill, string label, Tool t, string tip)
     {
+        var inner = (StackPanel)pill.Child;
         var b = new ToggleButton
         {
             Style = Theme.Style("ToolToggle"),
-            Content = label, Margin = new Thickness(1), MinWidth = 42,
+            Content = label,
+            Margin = new Thickness(0),
+            MinWidth = 36,
+            ToolTip = tip
+        };
+        b.Click += (_, _) => SetTool(t);
+        _toolButtons[t] = b;
+        inner.Children.Add(b);
+    }
+
+    private readonly Dictionary<double, ToggleButton> _thickButtons = new();
+
+    private void AddThickness(Border pill, string label, double value)
+    {
+        var inner = (StackPanel)pill.Child;
+        var b = new ToggleButton
+        {
+            Style = Theme.Style("ToolToggle"),
+            Content = label, Margin = new Thickness(0), MinWidth = 42,
             ToolTip = L.T("ed.strokeTip", value)
         };
         b.Click += (_, _) => SetThickness(value);
         _thickButtons[value] = b;
-        bar.Children.Add(b);
+        inner.Children.Add(b);
     }
 
     private void SetThickness(double v)

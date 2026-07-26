@@ -16,7 +16,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.IO.Compression;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -148,6 +150,12 @@ public static class Ocr
 
             try
             {
+                // ONNX Runtime (onnxruntime.dll, ~14 MB native) is shipped OUT of the exe and
+                // pulled on first OCR from the official Microsoft.ML.OnnxRuntime NuGet package,
+                // then loaded via SetDllDirectory. Keeps every non-OCR user from carrying 14 MB
+                // of inference runtime they never invoke. (Same lazy model the rec pack already uses.)
+                if (!EnsureOnnxRuntime()) return null;
+
                 // det + cls are language-agnostic and always embedded in the exe. Every
                 // recognition pack (Korean included) downloads on first use and is cached.
                 string det = ExtractModel("wsnap.ocr.det.onnx", "det.onnx");
@@ -304,6 +312,78 @@ public static class Ocr
         File.Move(tmp, path, overwrite: true);   // atomic-ish swap so a torn write never wins
         return path;
     }
+
+    // ---------- ONNX Runtime lazy bootstrap ----------
+
+    /// <summary>The version of <c>Microsoft.ML.OnnxRuntime</c> the bundled <c>RapidOcrNet</c>
+    /// was built against (see obj/project.assets.json). Pinned so the ABI the managed wrapper
+    /// expects always matches the native DLL we fetch. Bump together with the RapidOcrNet
+    /// PackageReference whenever that dependency moves.</summary>
+    private const string OnnxRuntimeVersion = "1.24.3";
+
+    private static int _runtimeState;   // 0 = unprobed, 1 = ready, -1 = failed this session
+    private static readonly string RuntimeDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "wsnap", "runtime");
+
+    /// <summary>Ensure <c>onnxruntime.dll</c> (+ providers_shared) live in <see cref="RuntimeDir"/>
+    /// and that directory is on the DLL search path. Idempotent; memoises the outcome per session.</summary>
+    private static bool EnsureOnnxRuntime()
+    {
+        int st = Volatile.Read(ref _runtimeState);
+        if (st == 1) return true;
+        if (st == -1) return false;
+
+        string dll = Path.Combine(RuntimeDir, "onnxruntime.dll");
+        if (File.Exists(dll) && new FileInfo(dll).Length > 1_000_000)
+        {
+            SetDllDirectory(RuntimeDir);
+            Volatile.Write(ref _runtimeState, 1);
+            return true;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(RuntimeDir);
+            Toast.Show(L.T("toast.runtimeDownloading"), 3000);
+
+            string nupkg = Path.Combine(RuntimeDir, "onnxruntime.nupkg.tmp");
+            string url = $"https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime/{OnnxRuntimeVersion}/microsoft.ml.onnxruntime.{OnnxRuntimeVersion}.nupkg";
+            DownloadFile(url, nupkg, null);
+
+            // A .nupkg is a zip. Pull only the win-x64 native binaries — the rest (managed asm,
+            // other RIDs) is dead weight for this tool.
+            using var zip = ZipFile.OpenRead(nupkg);
+            foreach (var entry in zip.Entries)
+            {
+                string name = entry.FullName.Replace('\\', '/');
+                if (name == "runtimes/win-x64/native/onnxruntime.dll" ||
+                    name == "runtimes/win-x64/native/onnxruntime_providers_shared.dll")
+                {
+                    entry.ExtractToFile(Path.Combine(RuntimeDir, Path.GetFileName(name)), overwrite: true);
+                }
+            }
+            try { File.Delete(nupkg); } catch { }
+
+            if (!File.Exists(dll) || new FileInfo(dll).Length < 1_000_000)
+                throw new InvalidDataException("onnxruntime.dll missing or truncated after extract");
+
+            SetDllDirectory(RuntimeDir);
+            Volatile.Write(ref _runtimeState, 1);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("onnx-runtime-bootstrap", ex);
+            Toast.Show(L.T("toast.runtimeDownloadFail"), 3500);
+            Volatile.Write(ref _runtimeState, -1);
+            return false;
+        }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetDllDirectory(string lpPathName);
 
     /// <summary>Arm (or re-arm) the idle timer that releases the engine after the last OCR.</summary>
     private static void ScheduleIdleDispose()

@@ -110,6 +110,13 @@ public sealed class CaptureOverlay : Window
     /// <summary>Filename-template metadata captured by App BEFORE this overlay grabbed focus.</summary>
     public NameContext NameCtx { get; set; } = NameContext.Empty;
 
+    /// <summary>When true the overlay saves the PNG synchronously on commit (pre-1.10 behaviour).
+    /// The interactive UI path leaves this false so App.RouteCapture can save off the UI thread
+    /// (no drag stutter); the external-control path (MCP/CLI interactive capture) sets it true so
+    /// the caller still receives a ready file path from <see cref="ResultPath"/> the instant the
+    /// overlay closes.</summary>
+    public bool SyncSave { get; set; }
+
     private NameContext CtxWithSize() =>
         NameCtx with { Width = RegionPx?.Width ?? NameCtx.Width, Height = RegionPx?.Height ?? NameCtx.Height };
 
@@ -465,10 +472,19 @@ public sealed class CaptureOverlay : Window
             EnterCommitted();
             return;
         }
+        // No synchronous save here — encoding a big PNG on the UI thread is what made the drag
+        // stutter (the user felt a "pause" right after mouse-up). App.RouteCapture now saves
+        // the bitmap off the UI thread and pops the thumbnail when the file lands.
+        // SyncSave is the escape hatch for the external-control path, which needs a ready
+        // ResultPath the instant the overlay closes (it can't await the background save).
         if (ResultBitmap != null)
         {
-            try { ResultPath = CaptureStore.SaveBitmap(ResultBitmap, CtxWithSize()); Action = PostAction.Save; }
-            catch (Exception ex) { CrashLog.Write("capture-save", ex); }
+            if (SyncSave)
+            {
+                try { ResultPath = CaptureStore.SaveBitmap(ResultBitmap, CtxWithSize()); }
+                catch (Exception ex) { CrashLog.Write("capture-save", ex); }
+            }
+            Action = PostAction.Save;
         }
         Close();
     }
@@ -535,14 +551,16 @@ public sealed class CaptureOverlay : Window
     private void Choose(PostAction a)
     {
         Action = a;
-        try
+        // The save happened on the UI thread here historically — on a 4K grab that meant a
+        // visible 100–300 ms freeze as the PNG was encoded. App.RouteCapture now saves the
+        // ResultBitmap off the UI thread, so all we do here is record the action and close.
+        // SyncSave is the escape hatch for the external-control path (see OnUp).
+        if (SyncSave && ResultBitmap != null &&
+            (a == PostAction.Save || a == PostAction.Copy || a == PostAction.Edit || a == PostAction.Pin))
         {
-            // Actions that need a file on disk get one saved here; OCR/GIF use the bitmap/region.
-            if ((a == PostAction.Save || a == PostAction.Copy || a == PostAction.Edit || a == PostAction.Pin)
-                && ResultBitmap != null)
-                ResultPath = CaptureStore.SaveBitmap(ResultBitmap, CtxWithSize());
+            try { ResultPath = CaptureStore.SaveBitmap(ResultBitmap, CtxWithSize()); }
+            catch (Exception ex) { CrashLog.Write("commit-save", ex); }
         }
-        catch (Exception ex) { CrashLog.Write("commit-save", ex); }
         Close();
     }
 
@@ -652,10 +670,16 @@ public sealed class CaptureOverlay : Window
         try { ResultBitmap = CropFreezeOrLive(px, py, pw, ph); } catch (Exception ex) { CrashLog.Write("window-grab", ex); }
         if (_mode == CaptureMode.OcrText) { Close(); return true; }
         if (Settings.Current.PostCaptureToolbar && ResultBitmap != null) { EnterCommitted(); return true; }
+        // Defer the save to App.RouteCapture (off the UI thread) — see OnUp.
+        // SyncSave is the escape hatch for the external-control path (see OnUp).
         if (ResultBitmap != null)
         {
-            try { ResultPath = CaptureStore.SaveBitmap(ResultBitmap, CtxWithSize()); Action = PostAction.Save; }
-            catch (Exception ex) { CrashLog.Write("window-save", ex); }
+            if (SyncSave)
+            {
+                try { ResultPath = CaptureStore.SaveBitmap(ResultBitmap, CtxWithSize()); }
+                catch (Exception ex) { CrashLog.Write("window-save", ex); }
+            }
+            Action = PostAction.Save;
         }
         Close();
         return true;

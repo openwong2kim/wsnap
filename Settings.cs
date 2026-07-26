@@ -18,6 +18,11 @@ using System.Text.Json.Serialization;
 
 namespace Wsnap;
 
+/// <summary>Save format for new captures. PNG is lossless (default, biggest); WebP/JPEG are
+/// lossy but several times smaller — good for screenshots shared in chat/docs where perfect
+/// text fidelity is not essential.</summary>
+public enum ImageFormat { Png, Webp, Jpeg }
+
 /// <summary>
 /// User settings, persisted as JSON at %APPDATA%\wsnap\settings.json.
 /// Loaded once into <see cref="Current"/> at startup; call <see cref="Save"/> after edits.
@@ -35,6 +40,17 @@ public sealed class Settings
     // ---- Capture / storage ----
     public string SaveFolder { get; set; } = DefaultSaveFolder();
     public bool KeepHistory { get; set; } = false;          // permanent date-foldered archive
+
+    /// <summary>Image format for new captures. PNG (default) = lossless &amp; biggest; WebP/JPEG
+    /// are lossy but ~3–10× smaller. JPEG has no alpha — fine for screen grabs.</summary>
+    public ImageFormat SaveFormat { get; set; } = ImageFormat.Png;
+
+    /// <summary>WebP quality 1–100 (ignored for PNG/JPEG). 85 is visually transparent for most
+    /// UI/text screenshots at a fraction of PNG's size.</summary>
+    public int WebpQuality { get; set; } = 85;
+
+    /// <summary>JPEG quality 1–100 (ignored for PNG/WebP). 90 keeps text crisp; lower if size matters more.</summary>
+    public int JpegQuality { get; set; } = 90;
 
     /// <summary>
     /// Filename template (extension appended automatically). Tokens:

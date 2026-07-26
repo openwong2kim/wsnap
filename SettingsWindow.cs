@@ -47,10 +47,13 @@ public sealed class SettingsWindow : Window
     private bool _keepHistory, _autoCopy, _postToolbar, _swallowWinS, _clipboardWatch, _telemetry, _upload, _autostart;
     private int _autoDismiss, _maxVisible;
     private int _videoFps;
+    private ImageFormat _imageFormat;
+    private int _webpQuality, _jpegQuality;
     private string _videoAudio = "none";
-    private ComboBox? _audioCombo;
-    private Slider? _fpsSlider;
-    private TextBlock? _fpsVal;
+    private ComboBox? _audioCombo, _formatCombo;
+    private Slider? _fpsSlider, _qualitySlider;
+    private TextBlock? _fpsVal, _qualityVal;
+    private Grid? _qualityRow;
     // external control + automation (v1.7)
     private bool _extEnabled, _extReturnContent, _extSilent, _clipboardAutoOcr, _watchFolderOcr, _allowShell;
     private int _extRateLimit;
@@ -115,6 +118,9 @@ public sealed class SettingsWindow : Window
         _autoDismiss = s.AutoDismissSeconds;
         _maxVisible = s.MaxVisible;
         _videoFps = s.VideoFps;
+        _imageFormat = s.SaveFormat;
+        _webpQuality = s.WebpQuality;
+        _jpegQuality = s.JpegQuality;
         _videoAudio = string.IsNullOrWhiteSpace(s.VideoAudio) ? "none" : s.VideoAudio.Trim().ToLowerInvariant();
         _extEnabled = s.ExternalControlEnabled;
         _extReturnContent = s.ExternalControlAllowReturnContent;
@@ -168,10 +174,46 @@ public sealed class SettingsWindow : Window
         _folderBox = Field(_saveFolder, readOnly: true);
         _template = Field(_filenameTemplate, readOnly: false);
         _historyChk = Check(L.T("set.keepHistory"), _keepHistory);
+
+        // Image format picker. PNG (lossless) is the default; WebP/JPEG trade fidelity for a
+        // much smaller file — the #1 thing people mean by "captures are too heavy on disk".
+        _formatCombo = new ComboBox { Style = Theme.Style("Combo"), Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        _formatCombo.Items.Add(L.T("set.fmtPng"));
+        _formatCombo.Items.Add(L.T("set.fmtWebp"));
+        _formatCombo.Items.Add(L.T("set.fmtJpeg"));
+        _formatCombo.SelectedIndex = (int)_imageFormat;
+        _qualitySlider = MakeSlider(1, 100, QualityFor(_imageFormat));
+        _qualityVal = new TextBlock { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Foreground = Theme.Brush("Muted"), MinWidth = 36 };
+        _qualitySlider.ValueChanged += (_, _) =>
+        {
+            if (_building) return;
+            int q = (int)_qualitySlider.Value;
+            _qualityVal.Text = q.ToString();
+            if (_imageFormat == ImageFormat.Webp) _webpQuality = q;
+            else if (_imageFormat == ImageFormat.Jpeg) _jpegQuality = q;
+        };
+        _qualityVal.Text = ((int)_qualitySlider.Value).ToString();
+        _qualityRow = SliderRow(L.T("set.imageQuality"), _qualitySlider, _qualityVal);
+        _formatCombo.SelectionChanged += (_, _) =>
+        {
+            if (_building || _formatCombo.SelectedIndex < 0) return;
+            _imageFormat = (ImageFormat)_formatCombo.SelectedIndex;
+            bool hasQ = _imageFormat != ImageFormat.Png;
+            _qualityRow.IsEnabled = hasQ;
+            _qualityRow.Opacity = hasQ ? 1 : 0.4;
+            if (hasQ) { _qualitySlider.Value = QualityFor(_imageFormat); _qualityVal.Text = ((int)_qualitySlider.Value).ToString(); }
+        };
+        // apply the initial enabled/opacity for the format loaded from settings
+        _qualityRow.IsEnabled = _imageFormat != ImageFormat.Png;
+        _qualityRow.Opacity = _imageFormat != ImageFormat.Png ? 1 : 0.4;
+
         root.Children.Add(Card(L.T("set.cardStorage"),
             Row(L.T("set.saveFolder"), _folderBox, Btn(L.T("set.browse"), PickFolder, primary: false)),
             Row(L.T("set.filenameTemplate"), _template, null),
             Hint(L.T("set.templateHint")),
+            Row(L.T("set.imageFormat"), _formatCombo, null),
+            _qualityRow,
+            Hint(L.T("set.formatHint")),
             _historyChk));
 
         // --- capture ---
@@ -287,6 +329,12 @@ public sealed class SettingsWindow : Window
         if (_fade != null) _autoDismiss = (int)_fade.Value;
         if (_max != null) _maxVisible = (int)_max.Value;
         if (_fpsSlider != null) _videoFps = (int)_fpsSlider.Value;
+        if (_formatCombo != null && _formatCombo.SelectedIndex >= 0) _imageFormat = (ImageFormat)_formatCombo.SelectedIndex;
+        if (_qualitySlider != null)
+        {
+            if (_imageFormat == ImageFormat.Webp) _webpQuality = (int)_qualitySlider.Value;
+            else if (_imageFormat == ImageFormat.Jpeg) _jpegQuality = (int)_qualitySlider.Value;
+        }
         if (_audioCombo != null)
         {
             string[] codes = { "none", "mic", "system", "both" };
@@ -435,6 +483,9 @@ public sealed class SettingsWindow : Window
         s.ImgurClientId = _imgurId.Trim();
         s.VideoFps = _videoFps;
         s.VideoAudio = _videoAudio;
+        s.SaveFormat = _imageFormat;
+        s.WebpQuality = Math.Clamp(_webpQuality, 1, 100);
+        s.JpegQuality = Math.Clamp(_jpegQuality, 1, 100);
         s.ExternalControlEnabled = _extEnabled;
         s.ExternalControlAllowReturnContent = _extReturnContent;
         s.ExternalControlAllowSilent = _extSilent;
@@ -579,6 +630,9 @@ public sealed class SettingsWindow : Window
         Minimum = min, Maximum = max, Value = Math.Clamp(val, min, max),
         TickFrequency = 1, IsSnapToTickEnabled = true, Width = 240, VerticalAlignment = VerticalAlignment.Center
     };
+
+    /// <summary>The quality value currently associated with a format (PNG has none → 90 placeholder).</summary>
+    private int QualityFor(ImageFormat f) => f == ImageFormat.Webp ? _webpQuality : f == ImageFormat.Jpeg ? _jpegQuality : 90;
 
     private static Grid SliderRow(string label, Slider sl, TextBlock? valueBlock)
     {

@@ -3,6 +3,52 @@
 All notable changes to wsnap are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [2.0.0] - 2026-07-26
+
+The "lighten up" release. Two of the most-heard complaints — **the capture drag stuttering** and
+**the 170 MB+ installer** — are addressed head-on, and the chrome gets its first real restyle since
+1.0. This is a breaking-shape release (new runtime prerequisite), hence the major bump.
+
+### Breaking
+- **Default build is now framework-dependent.** `wsnap.exe` drops from ~170 MB to **~9 MB**
+  (~20 MB with the bundled `libSkiaSharp.dll`) by depending on the Microsoft .NET 8 Desktop
+  Runtime — the same model ShareX uses with .NET Framework. The installer detects a missing
+  runtime and auto-installs it via `aka.ms`; portable-zip users install it themselves once.
+  Self-contained build still available locally via `publish.ps1 -SelfContained`.
+
+### Changed — performance
+- **No more capture-drag stutter.** Committing a region no longer encodes the PNG on the UI
+  thread — the overlay closes the instant you release the mouse, and `App.RouteCapture` /
+  `DeliverRegion` save the bitmap off the UI thread and pop the thumbnail when the file lands.
+  The visible "pause" after mouse-up on big grabs is gone.
+
+### Changed — package size (≈90% smaller)
+- **OCR runtime is now lazy.** `onnxruntime.dll` (~14 MB native) is fetched on first OCR from
+  the official `Microsoft.ML.OnnxRuntime` 1.24.3 NuGet package and loaded via `SetDllDirectory`.
+  Users who never OCR no longer carry the inference runtime.
+- **Satellite languages trimmed to `en;ko`** (~24 MB of `zh-Hans`/`tr`/`de`/… WPF/WinForms
+  satellites removed).
+- **`System.Windows.Forms.Design.dll`** (5.4 MB designer-only assembly) dropped from the manifest.
+
+### Added
+- **Image-format picker** in Settings → Storage: **PNG / WebP / JPEG** with a quality slider.
+  WebP/JPEG shrink captures 3–10× at a small fidelity cost — handy for screenshots shared in
+  chat/docs. PNG (lossless) stays the default.
+
+### Changed — design (macOS native tone)
+- **Palette migrated to the macOS Dark Mode system colours** — `systemBackground` greys
+  (#1C1C1E → #3A3A3C) and `systemBlue` (#0A84FF dark / #007AFF light). The old Tailwind-blue +
+  near-black palette felt harsh next to Preview/Screenshot.
+- **Editor toolbar redesigned as macOS-style segmented pill groups** — tools / stroke / colour
+  sit in their own rounded containers (NSSegmentedControl feel) instead of one long WrapPanel,
+  and primary actions are docked right.
+- **App icon redesigned.** Replaces the black-tile + "W" mark with a systemBlue squircle
+  carrying a white "selection region" glyph (rounded-rect outline + corner handles) — the same
+  visual language as the live capture overlay, so the app reads instantly as "screen region
+  capture" at 16px → 256px.
+- **UI icons (Icons.cs, 12 glyphs) redrawn** in the Lucide / SF Symbols line language at a
+  lighter 1.75-unit optical weight.
+
 ## [1.9.1] - 2026-07-10
 
 First round of Avalonia preview feedback, turned around same-day.

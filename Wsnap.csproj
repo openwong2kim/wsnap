@@ -12,7 +12,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>wsnap.ico</ApplicationIcon>
     <AssemblyName>wsnap</AssemblyName>
-    <Version>1.9.1</Version>
+    <Version>2.0.0</Version>
     <RootNamespace>Wsnap</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks> <!-- scroll-capture row matching uses pointers -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn> <!-- DPI is set via WPF manifest; WinForms hint is moot. -->
@@ -26,6 +26,21 @@
     <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
     <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <!-- Drop the in-process debugger support (runtime hooks, PDB reader, dynamic debug info) —
+         ~3–5 MB. Crashes still dump to wsnap.log via CrashLog and the WER telemetry; this only
+         removes the live-debug plumbing nobody shipping a release uses. -->
+    <DebuggerSupport>false</DebuggerSupport>
+    <!-- ReadyToRun emits ahead-of-time native code alongside the IL for every assembly — the
+         classic .NET 5–8 single-file size inflater. Turning it off ships pure IL and lets the
+         JIT do its job on first launch. Costs a little cold-start (a capture tool that lives in
+         the tray doesn't care) and reclaims ~8–15 MB from the bundle. -->
+    <PublishReadyToRun>false</PublishReadyToRun>
+
+    <!-- Ship only en + ko satellite assemblies. The .NET desktop SDK pulls in ~20 language
+         folders (zh-Hans, tr, de, fr, …) for WPF/WinForms — at ~1–2 MB each that's ~24 MB of
+         pure fat for a single-binary capture tool whose own UI already ships en/ko built-in
+         (Strings.cs) and only loads extra languages from locales\<code>.json. -->
+    <SatelliteResourceLanguages>en;ko</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
@@ -87,6 +102,43 @@
   <Target Name="WsnapDropLoosePublishModels" AfterTargets="CopyModelsPublish">
     <RemoveDir Directories="$(PublishDir)models" />
     <Delete Files="$(PublishDir)onnxruntime.lib;$(PublishDir)onnxruntime_providers_shared.lib" />
+  </Target>
+
+  <!-- WinForms ships a 5.4 MB System.Windows.Forms.Design.dll as part of its framework reference.
+       It's a designer-time assembly (PropertyGrid editors, control designers, serialization for the
+       VS designer) that a runtime capture tool never loads. Drop it from the publish manifest BEFORE
+       the single-file bundle runs so it never makes it into wsnap.exe. Safe because nothing in the
+       app reflects over or late-binds designers — if a future feature needs them, revisit this. -->
+  <Target Name="WsnapDropDesignAssemblies" BeforeTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Filename)%(Extension)' == 'System.Windows.Forms.Design.dll'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Filename)%(Extension)' == 'System.Windows.Forms.Design.Editors.dll'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Filename)%(Extension)' == 'System.Design.dll'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Filename)%(Extension)' == 'System.Drawing.Design.dll'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Filename)%(Extension)' == 'System.Windows.Forms.Design.Editors.resources'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Filename)%(Extension)' == 'System.Windows.Forms.Design.resources'" />
+    </ItemGroup>
+  </Target>
+
+  <!-- ONNX Runtime native (~14 MB) is fetched on first OCR from the official Microsoft.ML.OnnxRuntime
+       NuGet package and loaded via SetDllDirectory (see Ocr.cs EnsureOnnxRuntime). Keeping it out of
+       the bundle is the single biggest size cut for the majority of users who never OCR. The managed
+       RapidOcrNet.dll stays (small) — only the native inference runtime is lazy. -->
+  <Target Name="WsnapDropOnnxNative" BeforeTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Filename)%(Extension)' == 'onnxruntime.dll'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Filename)%(Extension)' == 'onnxruntime_providers_shared.dll'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Filename)%(Extension)' == 'onnxruntime_providers_cuda.dll'" />
+    </ItemGroup>
   </Target>
 
 </Project>

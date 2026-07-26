@@ -148,6 +148,8 @@ public static class L
         ["toast.countdown"]     = "Capturing in {0}s…",
         ["toast.ocrDownloading"]= "Downloading {0} OCR model… ({1})",
         ["toast.ocrDownloadFail"]= "Failed to download the {0} OCR model",
+        ["toast.runtimeDownloading"] = "Downloading OCR runtime… (~20 MB, one-time)",
+        ["toast.runtimeDownloadFail"] = "Failed to download the OCR runtime; OCR unavailable this session",
 
         // ---- settings window (SettingsWindow.cs) ----
         ["set.title"]           = "wsnap Settings",
@@ -158,6 +160,12 @@ public static class L
         ["set.filenameTemplate"]= "Filename format",
         ["set.templateHint"]    = "Tokens: {app} {title} {date} {time} {seq} {w} {h} · or a date format like {yyyy-MM-dd_HHmmss}",
         ["set.keepHistory"]     = "Keep captures permanently in date folders (history)",
+        ["set.imageFormat"]     = "Image format",
+        ["set.fmtPng"]          = "PNG  (lossless · biggest)",
+        ["set.fmtWebp"]         = "WebP (small · ~1/3 of PNG)",
+        ["set.fmtJpeg"]         = "JPEG (smallest · no alpha)",
+        ["set.imageQuality"]    = "Quality",
+        ["set.formatHint"]      = "PNG keeps text pixel-perfect. WebP/JPEG shrink files 3–10× at a small fidelity cost — great for screenshots shared in chat.",
         ["set.cardCapture"]     = "Capture",
         ["set.autoCopy"]        = "Copy to clipboard automatically on capture (ready for Ctrl+V)",
         ["set.toolbar"]         = "Show an action toolbar after selecting a region (off: drag → instant thumbnail bottom-right)",
@@ -369,6 +377,8 @@ public static class L
         ["toast.countdown"]     = "{0}초 후 캡처…",
         ["toast.ocrDownloading"]= "{0} OCR 모델 다운로드 중… ({1})",
         ["toast.ocrDownloadFail"]= "{0} OCR 모델 다운로드 실패",
+        ["toast.runtimeDownloading"] = "OCR 런타임 다운로드 중… (~20 MB, 최초 1회)",
+        ["toast.runtimeDownloadFail"] = "OCR 런타임 다운로드 실패 — 이번 실행에선 OCR 사용 불가",
 
         // ---- settings window ----
         ["set.title"]           = "wsnap 설정",
@@ -379,6 +389,12 @@ public static class L
         ["set.filenameTemplate"]= "파일 이름 형식",
         ["set.templateHint"]    = "토큰: {app} {title} {date} {time} {seq} {w} {h} · 또는 {yyyy-MM-dd_HHmmss} 같은 날짜 형식",
         ["set.keepHistory"]     = "캡처를 날짜별 폴더에 영구 보관 (히스토리)",
+        ["set.imageFormat"]     = "이미지 형식",
+        ["set.fmtPng"]          = "PNG  (무손실 · 가장 큼)",
+        ["set.fmtWebp"]         = "WebP (용량 작음 · PNG의 ~1/3)",
+        ["set.fmtJpeg"]         = "JPEG (가장 작음 · 알파 없음)",
+        ["set.imageQuality"]    = "품질",
+        ["set.formatHint"]      = "PNG는 텍스트가 완벽히 선명합니다. WebP/JPEG은 화질 손실을 감수하고 용량을 3~10배 줄입니다 — 채팅/문서에 공유할 스크린샷에 적합.",
         ["set.cardCapture"]     = "캡처",
         ["set.autoCopy"]        = "캡처하면 자동으로 클립보드에 복사 (Ctrl+V 바로 붙여넣기)",
         ["set.toolbar"]         = "영역 선택 후 액션 툴바 표시 (끄면: 드래그하면 즉시 우하단 썸네일)",

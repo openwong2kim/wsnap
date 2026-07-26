@@ -55,6 +55,46 @@ public static class SkiaImage
     public static void SavePng(Bitmap bmp, string path, bool opaque = true)
         => File.WriteAllBytes(path, EncodePng(bmp, opaque));
 
+    /// <summary>File extension (with dot) for a format, lowercase.</summary>
+    public static string Extension(ImageFormat fmt) => fmt switch
+    {
+        ImageFormat.Png  => ".png",
+        ImageFormat.Webp => ".webp",
+        ImageFormat.Jpeg => ".jpg",
+        _ => ".png"
+    };
+
+    /// <summary>
+    /// Encode a GDI+ bitmap in the given format. PNG is lossless; WebP/JPEG apply the supplied
+    /// quality (1–100). Screen grabs carry no meaningful alpha, so JPEG (no alpha) is fine here.
+    /// LockBits normalizes any source pixel format to 4-byte BGRA = SkiaSharp's Bgra8888.
+    /// </summary>
+    public static byte[] EncodeImage(Bitmap bmp, ImageFormat fmt, int quality, bool opaque)
+    {
+        if (fmt == ImageFormat.Png) return EncodePng(bmp, opaque);
+
+        var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+        var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            // JPEG has no alpha — treat as opaque regardless, so the encoder doesn't get
+            // premultiplied garbage. WebP keeps alpha if asked (but screen grabs don't need it).
+            var alpha = (fmt == ImageFormat.Jpeg) ? SKAlphaType.Opaque
+                        : (opaque ? SKAlphaType.Opaque : SKAlphaType.Unpremul);
+            var info = new SKImageInfo(data.Width, data.Height, SKColorType.Bgra8888, alpha);
+            using var img = SKImage.FromPixels(info, data.Scan0, data.Stride);
+            var encFmt = fmt == ImageFormat.Webp ? SKEncodedImageFormat.Webp : SKEncodedImageFormat.Jpeg;
+            int q = Math.Clamp(quality, 1, 100);
+            using var encoded = img.Encode(encFmt, q);
+            return encoded.ToArray();
+        }
+        finally { bmp.UnlockBits(data); }
+    }
+
+    /// <summary>Encode straight to a file in the given format.</summary>
+    public static void SaveImage(Bitmap bmp, string path, ImageFormat fmt, int quality, bool opaque = true)
+        => File.WriteAllBytes(path, EncodeImage(bmp, fmt, quality, opaque));
+
     /// <summary>Encode an SKBitmap to PNG bytes.</summary>
     public static byte[] EncodePng(SKBitmap bmp)
     {

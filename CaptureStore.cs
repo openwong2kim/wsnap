@@ -49,7 +49,7 @@ public static class CaptureStore
     /// <summary>Allocate a fresh capture path (creating the folder), honouring the history setting.</summary>
     public static string NewPath(string ext = ".png") => NewPath(NameContext.Empty, ext);
 
-    public static string NewPath(NameContext ctx, string ext = ".png")
+    public static string NewPath(NameContext ctx, string? ext = null)
     {
         var s = Settings.Current;
         string baseDir = string.IsNullOrWhiteSpace(s.SaveFolder)
@@ -61,6 +61,8 @@ public static class CaptureStore
             : baseDir;
         Directory.CreateDirectory(dir);
 
+        // Resolve the extension: explicit override → the current save format → PNG fallback.
+        if (string.IsNullOrEmpty(ext)) ext = SkiaImage.Extension(s.SaveFormat);
         if (!ext.StartsWith('.')) ext = "." + ext;
         return Unique(Path.Combine(dir, BuildName(s.FilenameTemplate, ctx) + ext));
     }
@@ -70,17 +72,37 @@ public static class CaptureStore
     public static string SaveBitmap(Bitmap bmp, NameContext ctx)
     {
         string path = NewPath(ctx);
-        // SkiaSharp encode (Phase 0, replaces GDI+ Bitmap.Save). opaque: screen grabs carry
-        // no meaningful alpha — see SkiaImage.EncodePng.
-        SkiaImage.SavePng(bmp, path);
+        SaveToPath(bmp, path);
         CrashLog.Telemetry("capture-saved");
         PruneScratch();
         return path;
     }
 
+    /// <summary>Write the bitmap to <paramref name="path"/> using the format/quality that the
+    /// path's extension implies (falls back to the current SaveFormat, then PNG). Centralised so
+    /// every save path — interactive, headless, scroll — honours the user's format choice.</summary>
+    private static void SaveToPath(Bitmap bmp, string path)
+    {
+        var s = Settings.Current;
+        var (fmt, quality) = ResolveForExtension(Path.GetExtension(path), s);
+        // Screen grabs carry no meaningful alpha — see SkiaImage.EncodePng.
+        SkiaImage.SaveImage(bmp, path, fmt, quality, opaque: true);
+    }
+
+    /// <summary>Map a file extension to the (format, quality) pair used to encode it.</summary>
+    private static (ImageFormat fmt, int quality) ResolveForExtension(string? ext, Settings s)
+    {
+        return (ext ?? "").ToLowerInvariant() switch
+        {
+            ".webp" => (ImageFormat.Webp, s.WebpQuality),
+            ".jpg" or ".jpeg" => (ImageFormat.Jpeg, s.JpegQuality),
+            _ => (ImageFormat.Png, 100)
+        };
+    }
+
     // ---------- capture history ----------
 
-    public static readonly string[] ImageExts = { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
+    public static readonly string[] ImageExts = { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp" };
 
     private static string ResolvedBaseDir()
     {

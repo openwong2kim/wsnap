@@ -18,24 +18,24 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # EnableCompressionInSingleFile is deliberately OFF (v1.8): compressed managed assemblies
-      # can't be memory-mapped, so the runtime inflates them into anonymous (swap-backed) pages —
-      # measured +115 MB working set / +74 MB private at idle and ~2x the startup CPU. The bigger
-      # exe costs nothing at download time (the installer/zip re-compress it) and its pages are
-      # file-backed, which the OS can reclaim for free.
-      - name: Publish self-contained single-file exe
+      # v2.0+: the default wsnap.exe is FRAMEWORK-DEPENDENT (~9 MB + loose libSkiaSharp.dll).
+      # This drops the self-contained bundle from ~170 MB to ~20 MB total — competitive with
+      # Snipaste/PicPick — at the cost of a one-time Microsoft .NET 8 Desktop Runtime install on
+      # the user's machine (the installer.iss [Code]/[Run] sections detect and auto-install it
+      # via aka.ms; portable-zip users install it themselves). Pass `-SelfContained` to publish.ps1
+      # for the legacy all-in-one build locally.
+      - name: Publish framework-dependent exe (default)
         run: >
-          dotnet publish Wsnap.csproj -c Release -r win-x64 --self-contained true
+          dotnet publish Wsnap.csproj -c Release -r win-x64 --self-contained false
           -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:EnableCompressionInSingleFile=false
           -o publish
 
       # Avalonia PREVIEW build (UI migration Phase 6): ships alongside the WPF default as an
       # opt-in portable exe. Distinct name (wsnap-avalonia.exe) on purpose — installable
       # side-by-side, and the shared single-instance mutex keeps only ONE resident at a time
       # so hotkeys never fight. Becomes the default in a future release after preview
-      # feedback; no installer / no signing while in preview.
+      # feedback; no installer / no signing while in preview. Stays self-contained so the
+      # preview needs no runtime prerequisite and runs anywhere.
       - name: Publish Avalonia preview exe
         run: >
           dotnet publish Wsnap.Avalonia/Wsnap.Avalonia.csproj -c Release -r win-x64 --self-contained true
@@ -103,8 +103,12 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           if (-not $tag.StartsWith('v')) { $tag = 'v1.0.0' }
-          Compress-Archive -Path publish\wsnap.exe, LICENSE, NOTICE, THIRD-PARTY-NOTICES.md -DestinationPath "wsnap-$tag-win-x64.zip" -Force
+          # Framework-dependent: ship the exe + its loose native (libSkiaSharp.dll) together.
+          # Portable users need the .NET 8 Desktop Runtime installed system-wide (installer.iss
+          # handles it for setup users; the release notes link the runtime download).
+          Compress-Archive -Path publish\wsnap.exe, publish\libSkiaSharp.dll, LICENSE, NOTICE, THIRD-PARTY-NOTICES.md -DestinationPath "wsnap-$tag-win-x64.zip" -Force
           (Get-FileHash publish\wsnap.exe -Algorithm SHA256).Hash + "  wsnap.exe" | Out-File SHA256SUMS.txt -Encoding ascii
+          (Get-FileHash publish\libSkiaSharp.dll -Algorithm SHA256).Hash + "  libSkiaSharp.dll" | Out-File SHA256SUMS.txt -Append -Encoding ascii
           (Get-FileHash publish-avalonia\wsnap-avalonia.exe -Algorithm SHA256).Hash + "  wsnap-avalonia.exe" | Out-File SHA256SUMS.txt -Append -Encoding ascii
           if (Test-Path dist) { Get-ChildItem dist\*.exe | ForEach-Object { ((Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name) | Out-File SHA256SUMS.txt -Append -Encoding ascii } }
 
@@ -114,6 +118,7 @@ jobs:
           generate_release_notes: true
           files: |
             publish/wsnap.exe
+            publish/libSkiaSharp.dll
             publish-avalonia/wsnap-avalonia.exe
             wsnap-*-win-x64.zip
             dist/wsnap-setup-*.exe

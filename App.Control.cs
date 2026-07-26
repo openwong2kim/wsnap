@@ -106,7 +106,10 @@ public partial class App : IResidentHost
 
         _overlayOpen = true;
         var tcs = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var overlay = new CaptureOverlay(CaptureMode.Capture) { NameCtx = CaptureCore.ForegroundContext() };
+        // SyncSave: the external-control caller needs a ready file path from overlay.ResultPath
+        // the instant the overlay closes (it can't await App.RouteCapture's background save).
+        // The interactive UI path (StartCapture) leaves SyncSave false for a stutter-free drag.
+        var overlay = new CaptureOverlay(CaptureMode.Capture) { NameCtx = CaptureCore.ForegroundContext(), SyncSave = true };
         overlay.Closed += (_, _) =>
         {
             _overlayOpen = false;

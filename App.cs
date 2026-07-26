@@ -425,59 +425,66 @@ public partial class App : System.Windows.Application
         overlay.Activate();
     }
 
-    /// <summary>Route a finished Capture overlay to the action the user picked (toolbar or default).</summary>
+    /// <summary>Route a finished Capture overlay to the action the user picked (toolbar or default).
+    /// The overlay no longer saves the PNG itself — it just hands us the ResultBitmap and closes
+    /// instantly. We encode off the UI thread here and pop the thumbnail when the file lands, so
+    /// the old synchronous PNG encode on mouse-up (the visible "pause"/stutter on big grabs) is gone.</summary>
     private void RouteCapture(CaptureOverlay overlay)
     {
         var act = overlay.Action;
-        string? path = overlay.ResultPath;
         var bmp = overlay.ResultBitmap;
         var region = overlay.RegionPx;
-        bool disposeBmp = true;
-        try
+
+        // OCR owns its bitmap (trims in RunOcr's finally); no file needed.
+        if (act == CaptureOverlay.PostAction.Ocr)
         {
-            switch (act)
-            {
-                case CaptureOverlay.PostAction.Save:
-                    if (path != null)
-                    {
-                        if (Settings.Current.AutoCopyOnCapture) ImageClipboard.CopyImageFile(path);
-                        new ThumbnailWindow(path).Show();
-                    }
-                    break;
-
-                case CaptureOverlay.PostAction.Pin:
-                    if (path != null)
-                    {
-                        if (Settings.Current.AutoCopyOnCapture) ImageClipboard.CopyImageFile(path);
-                        var t = new ThumbnailWindow(path); t.Show(); t.PinNow();
-                    }
-                    break;
-
-                case CaptureOverlay.PostAction.Copy:
-                    if (path != null) { ImageClipboard.CopyImageFile(path); Toast.Show(L.T("toast.imageCopied")); }
-                    break;
-
-                case CaptureOverlay.PostAction.Edit:
-                    if (path != null) OpenEditorThenThumbnail(path);
-                    break;
-
-                case CaptureOverlay.PostAction.Ocr:
-                    if (bmp != null) { disposeBmp = false; RunOcr(bmp); }   // RunOcr owns disposal
-                    break;
-
-                case CaptureOverlay.PostAction.Gif:
-                    if (region is { } r && r.Width > 1 && r.Height > 1)
-                        new GifRecorder(new System.Drawing.Rectangle(r.X, r.Y, r.Width, r.Height), p => { new ThumbnailWindow(p).Show(); ScheduleTrim(); }).Start();
-                    break;
-            }
+            if (bmp != null) RunOcr(bmp);
+            else ScheduleTrim();
+            return;
         }
-        catch (Exception ex) { CrashLog.Write("route-capture", ex); }
-        finally { if (disposeBmp) bmp?.Dispose(); }
-        // The primary region-capture path lands here; the overlay's large frozen-screen
-        // bitmap and result bitmap are released above, so reclaim the memory now. OCR keeps
-        // its bitmap (trims in RunOcr's finally) and GIF is mid-recording — its blocking
-        // compacting trim would drop frames — so it trims from its completion callback.
-        if (act != CaptureOverlay.PostAction.Ocr && act != CaptureOverlay.PostAction.Gif) ScheduleTrim();
+        // GIF records from a live region; no file needed here.
+        if (act == CaptureOverlay.PostAction.Gif)
+        {
+            if (region is { } r && r.Width > 1 && r.Height > 1)
+                new GifRecorder(new System.Drawing.Rectangle(r.X, r.Y, r.Width, r.Height), p => { new ThumbnailWindow(p).Show(); ScheduleTrim(); }).Start();
+            else ScheduleTrim();
+            return;
+        }
+
+        // Save/Pin/Copy/Edit all need a file on disk → encode off the UI thread.
+        if (bmp == null) { ScheduleTrim(); return; }
+
+        var ctx = overlay.NameCtx with { Width = region?.Width ?? 0, Height = region?.Height ?? 0 };
+        bool pin  = act == CaptureOverlay.PostAction.Pin;
+        bool copy = act == CaptureOverlay.PostAction.Copy;
+        bool edit = act == CaptureOverlay.PostAction.Edit;
+
+        _ = Task.Run(() =>
+        {
+            string? path = null;
+            try { path = CaptureStore.SaveBitmap(bmp, ctx); }
+            catch (Exception ex) { CrashLog.Write("route-save", ex); }
+            finally { bmp.Dispose(); MemoryTrim.TrimNow(); }   // the big grab bitmap is gone now
+
+            if (path == null) return;
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    if (edit) OpenEditorThenThumbnail(path);
+                    else if (copy) { ImageClipboard.CopyImageFile(path); Toast.Show(L.T("toast.imageCopied")); }
+                    else
+                    {
+                        if (Settings.Current.AutoCopyOnCapture) ImageClipboard.CopyImageFile(path);
+                        var t = new ThumbnailWindow(path); t.Show();
+                        if (pin) t.PinNow();
+                    }
+                }
+                catch (Exception ex) { CrashLog.Write("route-present", ex); }
+                finally { ScheduleTrim(); }
+            }));
+        });
     }
 
     private void OpenEditorThenThumbnail(string path)
@@ -589,21 +596,38 @@ public partial class App : System.Windows.Application
 
     // ---- one-shot capture modes (no overlay drag needed) ----
 
-    /// <summary>Grab a device-px rect, save it, copy it (if enabled), pop a thumbnail.</summary>
+    /// <summary>Grab a device-px rect, save it, copy it (if enabled), pop a thumbnail.
+    /// The save runs off the UI thread so the full-screen grab bitmap is encoded without
+    /// freezing the UI (this path serves full-screen / active-window / repeat captures).</summary>
     private void DeliverRegion(System.Windows.Int32Rect r)
     {
         if (r.Width < 1 || r.Height < 1) { Toast.Show(L.T("toast.noRegion")); return; }
-        try
+        var ctx = ForegroundContext(r.Width, r.Height);
+
+        System.Drawing.Bitmap bmp;
+        try { bmp = ScreenGrab.GrabFast(r.X, r.Y, r.Width, r.Height); }
+        catch (Exception ex) { CrashLog.Write("deliver-region-grab", ex); Toast.Show(L.T("toast.captureFailed")); return; }
+
+        _ = Task.Run(() =>
         {
-            var ctx = ForegroundContext(r.Width, r.Height);
-            string path;
-            using (var bmp = ScreenGrab.GrabFast(r.X, r.Y, r.Width, r.Height))
-                path = CaptureStore.SaveBitmap(bmp, ctx);
-            if (Settings.Current.AutoCopyOnCapture) ImageClipboard.CopyImageFile(path);
-            new ThumbnailWindow(path).Show();
-            ScheduleTrim();   // reclaim the full-screen grab bitmap once it's saved & shown
-        }
-        catch (Exception ex) { CrashLog.Write("deliver-region", ex); Toast.Show(L.T("toast.captureFailed")); }
+            string? path = null;
+            try { path = CaptureStore.SaveBitmap(bmp, ctx); }
+            catch (Exception ex) { CrashLog.Write("deliver-region-save", ex); }
+            finally { bmp.Dispose(); MemoryTrim.TrimNow(); }
+
+            if (path == null) { Dispatcher.BeginInvoke(new Action(() => Toast.Show(L.T("toast.captureFailed")))); return; }
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    if (Settings.Current.AutoCopyOnCapture) ImageClipboard.CopyImageFile(path);
+                    new ThumbnailWindow(path).Show();
+                }
+                catch (Exception ex) { CrashLog.Write("deliver-region-present", ex); }
+                finally { ScheduleTrim(); }
+            }));
+        });
     }
 
     private void CaptureFullScreen()
