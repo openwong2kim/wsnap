@@ -1,8 +1,8 @@
 # Generates wsnap.ico (multi-resolution) + site/icon.png from code — no binary assets in git.
-# macOS-style app icon: a systemBlue squircle with a white "selection region" mark — a rounded
-# rectangle outline with a corner handle on each corner — the same visual language as the live
-# capture overlay. Reads instantly as "screen region capture" at every size (16px taskbar to
-# 256px store tile). Supersedes the old black-tile + "W" mark.
+# macOS-native app icon: a systemBackground squircle (dark-mode grey) carrying a slim white "W"
+# drawn as a stroked path — no font dependency, identical on every build machine. Reads instantly
+# as "wsnap" at every size (16px taskbar to 256px store tile). Supersedes the systemBlue +
+# selection-region mark, which read as busy next to macOS system chrome.
 #   pwsh -File tools/make-icon.ps1 -Out <path-to-wsnap.ico>
 param([string]$Out = (Join-Path (Split-Path $PSScriptRoot -Parent) 'wsnap.ico'))
 
@@ -10,10 +10,10 @@ Add-Type -AssemblyName System.Drawing
 $root = Split-Path $Out -Parent
 $sizes = 16,24,32,48,64,128,256
 
-# macOS systemBlue (dark mode). Lightly lifted (G→B) in the top-left for a soft specular feel —
-# flat blue reads dull next to macOS app icons, which all carry a subtle gradient.
-$BlueTop = [System.Drawing.Color]::FromArgb(255, 0x2A, 0x9C, 0xFF)
-$BlueBot = [System.Drawing.Color]::FromArgb(255, 0x0A, 0x84, 0xFF)
+# macOS systemBackground greys (HIG dark mode). Lifted very slightly top-left for a soft specular
+# feel — flat grey reads dead next to macOS app icons, which all carry a subtle gradient.
+$GreyTop = [System.Drawing.Color]::FromArgb(255, 0x2C, 0x2C, 0x2E)  # secondarySystemBackground
+$GreyBot = [System.Drawing.Color]::FromArgb(255, 0x1C, 0x1C, 0x1E)  # systemBackground
 
 function RoundedRectPath([double]$x, [double]$y, [double]$w, [double]$h, [double]$r) {
   $p = New-Object System.Drawing.Drawing2D.GraphicsPath
@@ -42,42 +42,30 @@ function New-IconBitmap([int]$S) {
   $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
     (New-Object System.Drawing.PointF(0, 0)),
     (New-Object System.Drawing.PointF([single]$S, [single]$S)),
-    $BlueTop, $BlueBot)
+    $GreyTop, $GreyBot)
   $g.FillPath($brush, $tile)
   $brush.Dispose()
 
-  # selection-region mark: white rounded-rectangle outline + a filled dot at each corner.
-  # Same geometry the live overlay draws around the user's drag, so the app icon and the
-  # capture UX share one vocabulary.
-  $mx = [double]$S * 0.30      # selection rect inset
-  $mw = [double]$S * 0.40      # selection rect side
-  $mr = [double]$S * 0.055     # selection rect corner radius
-  $outline = RoundedRectPath $mx $mx $mw $mw $mr
-  $stroke = [Math]::Max(1.4, $S * 0.075)
-  $wpen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, [single]$stroke)
+  # W glyph: four connected diagonals stroked in white — a slim, native-feel mark instead of a
+  # heavy font glyph (no font dependency, identical output on every build machine). Same inset
+  # the old selection-region mark used, so the icon keeps its visual weight in the toolbar.
+  $mx = [double]$S * 0.30      # glyph inset
+  $mw = [double]$S * 0.40      # glyph side
+  $wstroke = [Math]::Max(2.0, $S * 0.07)
+  $wpen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, [single]$wstroke)
   $wpen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
   $wpen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
   $wpen.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
-  $g.DrawPath($wpen, $outline)
+  [System.Drawing.PointF[]]$pts = @(
+    (New-Object System.Drawing.PointF([single]($mx + $mw*0.00), [single]($mx + $mw*0.00))),
+    (New-Object System.Drawing.PointF([single]($mx + $mw*0.25), [single]($mx + $mw*1.00))),
+    (New-Object System.Drawing.PointF([single]($mx + $mw*0.50), [single]($mx + $mw*0.35))),
+    (New-Object System.Drawing.PointF([single]($mx + $mw*0.75), [single]($mx + $mw*1.00))),
+    (New-Object System.Drawing.PointF([single]($mx + $mw*1.00), [single]($mx + $mw*0.00)))
+  )
+  $g.DrawLines($wpen, $pts)
 
-  # Corner handles only when the icon is big enough that a dot won't blob into the outline.
-  # Below 48px the outline alone carries the symbol; dots would just smear.
-  if ($S -ge 48) {
-    $dotR = [double]$S * 0.055
-    $corners = @(
-      (New-Object System.Drawing.PointF([single]$mx,            [single]$mx)),
-      (New-Object System.Drawing.PointF([single]($mx + $mw),    [single]$mx)),
-      (New-Object System.Drawing.PointF([single]$mx,            [single]($mx + $mw))),
-      (New-Object System.Drawing.PointF([single]($mx + $mw),    [single]($mx + $mw)))
-    )
-    $wfill = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-    foreach ($c in $corners) {
-      $g.FillEllipse($wfill, [single]($c.X - $dotR), [single]($c.Y - $dotR), [single]($dotR*2), [single]($dotR*2))
-    }
-    $wfill.Dispose()
-  }
-
-  $wpen.Dispose(); $outline.Dispose(); $tile.Dispose(); $g.Dispose()
+  $wpen.Dispose(); $tile.Dispose(); $g.Dispose()
   return $bmp
 }
 
