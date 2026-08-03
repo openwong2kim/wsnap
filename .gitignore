@@ -23,3 +23,6 @@ publish-opt/
 .mosaiccheck/
 publish-nocomp/
 .buildcheck-avalonia/
+
+# Windows reserved name (accidentally created by `> nul` redirects)
+nul

@@ -75,5 +75,5 @@ begin
   DownloadTemporaryFile('https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe', 'dotnet-runtime.exe', '', nil);
 end;
 
-; NOTE: code-sign {#AppExe} and the resulting setup.exe before distributing
-; (Authenticode cert) to avoid SmartScreen warnings. See ROADMAP.
+// NOTE: code-sign {#AppExe} and the resulting setup.exe before distributing
+// (Authenticode cert) to avoid SmartScreen warnings. See ROADMAP.
